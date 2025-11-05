@@ -1,5 +1,5 @@
 {
-    "name": "contenir/setup",
+    "name": "contenir/contenir-setup",
     "description": "Installation and setup module for Contenir CMS - handles initial configuration and database setup",
     "type": "library",
     "license": "MIT",
