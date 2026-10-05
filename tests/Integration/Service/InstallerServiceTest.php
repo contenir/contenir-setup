@@ -101,8 +101,7 @@ final class InstallerServiceTest extends TestCase
     {
         $this->createDatabase();
         $adapter = $this->createStub(Adapter::class);
-        $adapter
-            ->method('query')
+        $adapter->method('query')
             ->willReturn(
                 'statement' === $rows ? $this->createStub(StatementInterface::class) : self::resultSet($rows),
             );
