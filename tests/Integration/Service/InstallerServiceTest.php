@@ -19,6 +19,7 @@ use RuntimeException;
 use stdClass;
 use User\Manager\UserManager;
 
+use function basename;
 use function chmod;
 use function file_get_contents;
 use function file_put_contents;
@@ -45,10 +46,14 @@ final class InstallerServiceTest extends TestCase
     public static function incompleteStatuses(): array
     {
         return [
-            'pending migrations'  => [['current_version' => 2, 'is_up_to_date' => false]],
-            'nothing applied'     => [['current_version' => 0, 'is_up_to_date' => true]],
-            'non-integer version' => [['current_version' => '3', 'is_up_to_date' => true]],
-            'empty status'        => [[]],
+            'pending migrations'           => [['current_version' => 2, 'is_up_to_date' => false]],
+            'nothing applied'              => [['current_version' => 0, 'is_up_to_date' => true]],
+            'negative version'             => [['current_version' => -1, 'is_up_to_date' => true]],
+            'non-integer version'          => [['current_version' => '3', 'is_up_to_date' => true]],
+            'up to date without a version' => [['is_up_to_date' => true]],
+            'version without up-to-date'   => [['current_version' => 3]],
+            'truthy up-to-date flag'       => [['current_version' => 3, 'is_up_to_date' => 1]],
+            'empty status'                 => [[]],
         ];
     }
 
@@ -92,6 +97,31 @@ final class InstallerServiceTest extends TestCase
         return $resultSet;
     }
 
+    #[Test]
+    public function backsUpADatabaseFileOfOneByte(): void
+    {
+        mkdir($this->path('cms'));
+        file_put_contents($this->dbPath, data: 'x');
+
+        $this->installer()->repair();
+
+        static::assertCount(1, (array) glob("{$this->dbPath}.backup.*"));
+    }
+
+    #[Test]
+    public function countsAnObjectRowAsZero(): void
+    {
+        $this->createDatabase();
+        $resultSet = $this->createStub(ResultSet::class);
+        $resultSet->method('current')->willReturn(new stdClass());
+        $adapter = $this->createStub(Adapter::class);
+        $adapter->method('query')->willReturn($resultSet);
+
+        $errors = $this->installer($this->migrations(self::UP_TO_DATE), adapter: $adapter)->validate();
+
+        static::assertSame(['No administrator user found', 'Missing default roles'], $errors);
+    }
+
     /**
      * @param 'statement'|list<array<string, mixed>> $rows
      */
@@ -121,6 +151,14 @@ final class InstallerServiceTest extends TestCase
             ->willReturn(new stdClass());
 
         $this->installer(users: $users)->createAdminUser(['username' => 'root']);
+    }
+
+    #[Test]
+    public function createsTheDatabaseDirectoryReadableByEveryone(): void
+    {
+        $this->installer()->install();
+
+        static::assertSame(0o755, $this->permissionsOf('cms'));
     }
 
     #[Test]
@@ -170,8 +208,18 @@ final class InstallerServiceTest extends TestCase
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Database repair failed: CMS database path not configured');
+        $this->expectExceptionCode(0);
 
         $this->installer(config: [])->repair();
+    }
+
+    #[Test]
+    public function findsADatabaseFileOfOneByte(): void
+    {
+        mkdir($this->path('cms'));
+        file_put_contents($this->dbPath, data: 'x');
+
+        static::assertTrue($this->installer()->databaseFileExists());
     }
 
     #[Test]
@@ -208,6 +256,16 @@ final class InstallerServiceTest extends TestCase
         $users->expects($this->never())->method('createUser');
 
         static::assertFalse($this->installer(users: $users)->install());
+    }
+
+    #[Test]
+    public function isInstalledOnceTheFirstMigrationIsApplied(): void
+    {
+        $this->createDatabase();
+
+        static::assertTrue(
+            $this->installer($this->migrations(['current_version' => 1, 'is_up_to_date' => true]))->isInstalled(),
+        );
     }
 
     #[Test]
@@ -270,6 +328,20 @@ final class InstallerServiceTest extends TestCase
         }
 
         static::assertFileExists($this->dbPath);
+    }
+
+    #[Test]
+    public function namesTheBackupAfterTheRepairTime(): void
+    {
+        $this->createDatabase();
+
+        $this->installer()->repair();
+
+        $backups = (array) glob("{$this->dbPath}.backup.*");
+        static::assertMatchesRegularExpression(
+            '/^cms\.db\.backup\.\d{4}-\d{2}-\d{2}-\d{6}$/',
+            basename((string) ($backups[0] ?? '')),
+        );
     }
 
     #[Test]
@@ -401,8 +473,8 @@ final class InstallerServiceTest extends TestCase
             static::fail('Expected the installation to fail.');
         } catch (RuntimeException $e) {
             static::assertSame(
-                ['Database installation failed: syntax error', 'syntax error'],
-                [$e->getMessage(), $e->getPrevious()?->getMessage()],
+                ['Database installation failed: syntax error', 0, 'syntax error'],
+                [$e->getMessage(), $e->getCode(), $e->getPrevious()?->getMessage()],
             );
         }
     }
