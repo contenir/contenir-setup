@@ -73,6 +73,8 @@ extracted from the CMS. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
   latest dependencies, with coverage reported to Codecov.
 - Unit (no I/O) and integration (temp directories, SQLite, laminas-view
   template rendering) test suites, with 100% line and branch coverage.
+- A `LICENSE` file with the MIT licence already declared in
+  `composer.json`, held by Contenir.
 - README and `docs/` pages for the wizard, diagnostics, database
   configuration, installer service and cache clearing.
 
