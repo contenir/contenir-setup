@@ -29,6 +29,12 @@ final class InstallHandlerTest extends TestCase
     /** One character short of InstallHandler::MINIMUM_PASSWORD_LENGTH. */
     private const string SHORT_FORM_VALUE = '1234567';
 
+    /** One character short of the minimum, but more bytes than it. */
+    private const string SHORT_MULTIBYTE_FORM_VALUE = 'ééééééé';
+
+    /** Exactly InstallHandler::MINIMUM_PASSWORD_LENGTH characters. */
+    private const string MINIMUM_FORM_VALUE = '12345678';
+
     /** @var array<string, mixed> */
     private array $rendered = [];
 
@@ -68,8 +74,10 @@ final class InstallHandlerTest extends TestCase
             'blank username'    => [[...$complete, 'admin_username' => '  ']],
             'no email'          => [[...$complete, 'admin_email' => null]],
             'blank email'       => [[...$complete, 'admin_email' => '']],
+            'whitespace email'  => [[...$complete, 'admin_email' => '  ']],
             'no password'       => [[...$complete, 'admin_password' => null]],
             'short password'    => [[...$complete, 'admin_password' => self::SHORT_FORM_VALUE]],
+            'short multibyte'   => [[...$complete, 'admin_password' => self::SHORT_MULTIBYTE_FORM_VALUE]],
             'non-string values' => [['admin_username' => ['root'], 'admin_email' => 1, 'admin_password' => true]],
         ];
     }
@@ -149,6 +157,16 @@ final class InstallHandlerTest extends TestCase
         $response = $this->post(['action' => 'test-connection']);
 
         static::assertSame('/setup?step=admin-user&success=1', $response->getHeaderLine('Location'));
+    }
+
+    #[Test]
+    public function installsWithAPasswordOfTheMinimumLength(): void
+    {
+        $installer = $this->createMock(InstallerServiceInterface::class);
+        $installer->expects($this->once())->method('install')->willReturn(true);
+        $this->installer = $installer;
+
+        $this->post([...self::adminForm(), 'admin_password' => self::MINIMUM_FORM_VALUE]);
     }
 
     #[Test]
