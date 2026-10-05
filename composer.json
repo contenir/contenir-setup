@@ -1,5 +1,5 @@
 {
-    "name": "contenir/contenir-setup",
+    "name": "contenir/contenir-setup-mezzio",
     "description": "Installation and setup module for Contenir CMS - handles initial configuration and database setup",
     "type": "library",
     "license": "MIT",
@@ -32,6 +32,9 @@
         "infection/infection": "^0.34.1",
         "php-db/phpdb-qa-tools": "0.1.x-dev",
         "phpunit/phpunit": "^11.5.42"
+    },
+    "replace": {
+        "contenir/contenir-setup": "self.version"
     },
     "autoload": {
         "psr-4": {
@@ -79,7 +82,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-master": "2.0.x-dev"
+            "dev-master": "2.1.x-dev"
         },
         "laminas": {
             "config-provider": "Contenir\\Setup\\ConfigProvider"
