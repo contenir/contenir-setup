@@ -20,7 +20,7 @@ host application's services:
 | `install(?array $admin)` | Creates the database directory, checks it is writable, runs all migrations, creates the administrator when given, and returns `isInstalled()` |
 | `createAdminUser(array $data)` | `UserManager::createUser()` with `role_id: administrator` and `active: active` added |
 | `validate()` | `[]` when valid, otherwise problems: `Database is not installed`, `No administrator user found`, `Missing default roles` (fewer than 3), or a failed query |
-| `repair()` | Copies a non-empty database to `<file>.backup.<Y-m-d-His>`, deletes it, and runs `install()` without an administrator |
+| `repair()` | Copies a non-empty database to `<file>.backup.<Y-m-d-His>`, deletes it, and runs `install()` without an administrator. Not exposed over HTTP: call it from code you control, such as a CLI command |
 
 `install()` and `repair()` wrap every failure in a `RuntimeException`
 (`Database installation failed: ...`, `Database repair failed: ...`) with

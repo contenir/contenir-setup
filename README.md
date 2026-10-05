@@ -36,23 +36,41 @@ composer require contenir/contenir-setup
 
 With [laminas-component-installer](https://docs.laminas.dev/laminas-component-installer/)
 the `Contenir\Setup\ConfigProvider` is added to your configuration
-automatically. Then route the two handlers:
+automatically. Then route the wizard:
 
 ```php
 // config/routes.php
 $app->route('/setup', Contenir\Setup\Handler\InstallHandler::class, ['GET', 'POST'], 'setup');
-$app->get('/setup/complete', Contenir\Setup\Handler\CompleteHandler::class, 'setup.complete');
 ```
 
-The handlers redirect to these exact paths. Protect `/setup` once the site is
-installed (see [the wizard](docs/wizard.md#after-installation)).
+The handler redirects to this exact path.
+
+## Security
+
+- **The wizard closes itself.** Once `InstallerService::isInstalled()` is
+  true, every setup request (GET or POST, any parameters) gets an empty 404
+  and nothing is written: not `db.local.php`, not the cache, not the
+  database, not the users. 404 rather than 403, so an installed site does not
+  confirm the endpoint exists.
+- **Before installation the wizard is open to anyone who can reach it**, as
+  with any web installer. Install promptly, or restrict `/setup` at the web
+  server until you have.
+- **No default administrator.** The install step requires a username, an
+  email and a password of at least 8 characters
+  (`InstallHandler::MINIMUM_PASSWORD_LENGTH`). Credentials are never shown
+  back.
+- **Repair is not exposed over HTTP.** `InstallerService::repair()` (back
+  up, delete and reinstall the database) is only callable from code, such as
+  a CLI command you register.
+- **Reconfiguring an installed site** means editing
+  `config/autoload/db.local.php` yourself.
 
 ## Usage
 
 | Class | Purpose |
 | --- | --- |
 | `Handler\InstallHandler` | The wizard: renders `setup::install` and handles each step's POST |
-| `Handler\CompleteHandler` | Renders `setup::complete` with validation warnings |
+| `Handler\CompleteHandler` | Legacy completion route: redirects to `/setup`, or 404 once installed |
 | `Service\DiagnosticsService` | PHP version, extensions, required and writable directories, with auto-fix |
 | `Service\DatabaseConfigWriter` | Writes `config/autoload/db.local.php` from the database form |
 | `Service\CacheService` | Deletes the files under the cache directory |

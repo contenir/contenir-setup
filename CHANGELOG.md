@@ -10,12 +10,33 @@ First tagged release, aligned with the Contenir 2.x packages: PHP 8.3+, the
 php-db QA toolchain, and fixes for paths that broke when the module was
 extracted from the CMS. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
 
+### Security
+
+- The setup wizard closes once the CMS is installed: every request to
+  `InstallHandler` and `CompleteHandler` (GET or POST, including
+  `?force=1`) gets an empty 404 and runs nothing. Before, anyone who could
+  reach `/setup` on an installed site could overwrite `db.local.php`, clear
+  the cache, run migrations and create another administrator.
+- The administrator account has no defaults. The install step requires a
+  username, an email and a password of at least 8 characters
+  (`InstallHandler::MINIMUM_PASSWORD_LENGTH`), and is refused otherwise.
+  Before, a missing username became `admin` and a missing password was
+  passed on empty.
+- The completion page no longer shows "admin / admin" as default login
+  credentials (no such account exists), and the username field is no
+  longer pre-filled with `admin`.
+- `InstallerService::repair()` is not reachable over HTTP; no route or
+  action calls it. Call it from code you control, such as a CLI command.
+
 ### Changed
 
 - Requires PHP 8.3, 8.4 or 8.5, laminas/laminas-db 2.20+,
   laminas/laminas-servicemanager 3.22+, laminas/laminas-view 2.33+ and
   laminas/laminas-diactoros 3.3+.
 - `ConfigProvider` and every `*Factory` class are `final`.
+- The final install step renders the completion page itself instead of
+  redirecting to `/setup/complete`; `CompleteHandler` now only redirects to
+  `/setup` (not installed) or answers 404 (installed).
 - `DatabaseConfigWriter`, `CacheService` and `DiagnosticsService` resolve
   their default paths against the working directory (the application root
   in Mezzio) instead of the package's own location.

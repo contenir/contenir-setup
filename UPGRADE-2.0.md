@@ -15,6 +15,57 @@ these are the changes that can affect you.
 composer require contenir/contenir-setup:^2.0
 ```
 
+## The wizard closes after installation (security)
+
+Once `InstallerService::isInstalled()` is true, `InstallHandler` and
+`CompleteHandler` answer every request with an empty `404 Not Found`, and
+call nothing but that check: no config write, cache clear, migration,
+connection test or user creation.
+
+```text
+# before: on an installed site
+GET  /setup?force=1                        -> the wizard, ready to reconfigure
+POST /setup action=install&admin_username=x -> a new administrator
+
+# 2.0
+GET  /setup?force=1                        -> 404
+POST /setup action=install&...             -> 404
+```
+
+To reconfigure an installed site, edit `config/autoload/db.local.php`
+directly. To repair the database, call `InstallerService::repair()` from code
+you control (for example a CLI command); it has no HTTP route.
+
+404 was chosen over 403 so that an installed site does not confirm that a
+setup endpoint exists.
+
+## The administrator has no defaults
+
+```php
+// before: missing fields fell back to defaults
+['action' => 'install'] // installed with username "admin" and an empty password
+
+// 2.0: all three are required, the password at least 8 characters
+[
+    'action'         => 'install',
+    'admin_username' => 'jo',
+    'admin_email'    => 'jo@example.com',
+    'admin_password' => '...',          // InstallHandler::MINIMUM_PASSWORD_LENGTH
+]
+// anything less redirects back to step=admin-user with an error
+```
+
+The completion page no longer claims an "admin / admin" login.
+
+## Completion page
+
+The final install step now renders `setup::complete` in its own response
+(with `title` and `errors`) instead of redirecting to `/setup/complete`.
+`CompleteHandler` stays for compatibility: it redirects to `/setup` before
+installation and answers 404 after. The `/setup/complete` route can be
+removed. If you override `setup::complete`, it still receives the same
+variables.
+
 ## Final wiring classes
 
 `ConfigProvider`, `Handler\CompleteHandlerFactory`,
