@@ -98,6 +98,14 @@ final class DatabaseConfigWriterTest extends TestCase
     }
 
     #[Test]
+    public function createsTheConfigDirectoryReadableByEveryone(): void
+    {
+        (new DatabaseConfigWriter($this->path('config/autoload/db.local.php')))->write([]);
+
+        static::assertSame(0o755, $this->permissionsOf('config/autoload'));
+    }
+
+    #[Test]
     public function failsForAReadOnlyDirectory(): void
     {
         $this->skipWhenRunningAsRoot();

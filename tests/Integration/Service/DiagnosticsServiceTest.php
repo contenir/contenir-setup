@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Contenir\Setup\Tests\Integration\Service;
 
 use Contenir\Setup\Service\DiagnosticsService;
+use Contenir\Setup\Service\DiagnosticsServiceFactory;
+use Contenir\Setup\Tests\TestAsset\Container\InMemoryContainer;
 use Contenir\Setup\Tests\Trait\TemporaryDirectoryTrait;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;
+use function array_keys;
+use function array_slice;
 use function chdir;
 use function chmod;
 use function getcwd;
@@ -29,6 +33,69 @@ final class DiagnosticsServiceTest extends TestCase
     private const array DIRECTORIES = ['data', 'data/cms', 'data/cache', 'config', 'config/autoload'];
 
     #[Test]
+    public function checksTheConfigurationDirectory(): void
+    {
+        $this->createDirectories();
+        $service = $this->service();
+
+        $service->checkConfiguration();
+
+        static::assertSame(
+            ['config_directory' => ['success' => true, 'message' => 'Configuration directory is writable']],
+            $service->getResults(),
+        );
+    }
+
+    #[Test]
+    public function checksTheDirectories(): void
+    {
+        $this->createDirectories();
+        $service = $this->service();
+
+        $service->checkDirectories();
+
+        static::assertSame(
+            ['dir_data', 'dir_data/cms', 'dir_data/cache', 'dir_config', 'dir_config/autoload'],
+            array_keys($service->getResults()),
+        );
+    }
+
+    #[Test]
+    public function checksThePermissionsOfTheDirectoriesThatExist(): void
+    {
+        mkdir($this->path('config/autoload'), recursive: true);
+        $service = $this->service();
+
+        $service->checkPermissions();
+
+        static::assertSame(
+            ['writable_config/autoload' => ['success' => true, 'message' => 'Directory is writable: config/autoload']],
+            $service->getResults(),
+        );
+    }
+
+    #[Test]
+    public function checksThePhpVersionAndExtensions(): void
+    {
+        $this->createDirectories();
+
+        $results = $this->service()->runAll()['results'];
+
+        static::assertSame(
+            [
+                'php_version',
+                'extension_pdo',
+                'extension_pdo_sqlite',
+                'extension_json',
+                'extension_mbstring',
+                'extension_openssl',
+                'extension_session',
+            ],
+            array_slice(array_keys($results), offset: 0, length: 7),
+        );
+    }
+
+    #[Test]
     public function checksTheWorkingDirectoryByDefault(): void
     {
         $this->createDirectories();
@@ -42,6 +109,37 @@ final class DiagnosticsServiceTest extends TestCase
         }
 
         static::assertSame('Directory exists: config/autoload', $report['results']['dir_config/autoload']['message']);
+    }
+
+    #[Test]
+    public function createsMissingDirectoriesByDefault(): void
+    {
+        (new DiagnosticsService([], basePath: $this->tmpDir))->runAll();
+
+        static::assertDirectoryExists($this->path('data/cache'));
+    }
+
+    #[Test]
+    public function createsMissingDirectoriesReadableByEveryone(): void
+    {
+        $this->service()->runAll();
+
+        static::assertSame(0o755, $this->permissionsOf('data/cms'));
+    }
+
+    #[Test]
+    public function createsMissingDirectoriesWhenBuiltByTheFactory(): void
+    {
+        $cwd = (string) getcwd();
+        chdir($this->tmpDir);
+
+        try {
+            (new DiagnosticsServiceFactory())(new InMemoryContainer(['config' => []]))->runAll();
+        } finally {
+            chdir($cwd);
+        }
+
+        static::assertDirectoryExists($this->path('data/cache'));
     }
 
     #[Test]
@@ -63,7 +161,7 @@ final class DiagnosticsServiceTest extends TestCase
         $results = $this->service()->runAll()['results'];
 
         static::assertSame('Directory permissions fixed: data/cache', $results['writable_data/cache']['message']);
-        static::assertTrue(is_writable($this->path('data/cache')));
+        static::assertSame(0o755, $this->permissionsOf('data/cache'));
     }
 
     #[Test]

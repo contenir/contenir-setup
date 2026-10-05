@@ -69,13 +69,15 @@ final class InstallerService implements InstallerServiceInterface
      * Whether the database file exists and is not empty.
      *
      * @throws RuntimeException When the database path is not configured.
+     *
+     * @mago-expect analysis:possibly-false-operand A size that cannot be read (false) is not greater than zero.
      */
     #[Override]
     public function databaseFileExists(): bool
     {
         $dbPath = $this->getDatabasePath();
 
-        return file_exists($dbPath) && 0 < (int) filesize($dbPath);
+        return file_exists($dbPath) && 0 < filesize($dbPath);
     }
 
     /**
@@ -150,14 +152,13 @@ final class InstallerService implements InstallerServiceInterface
                 return false;
             }
 
-            $status = $this->migrationService->getStatus();
+            $status  = $this->migrationService->getStatus();
+            $version = $status['current_version'] ?? null;
+
+            return true === ($status['is_up_to_date'] ?? false) && is_int($version) && $version > 0;
         } catch (Exception) {
             return false;
         }
-
-        $version = $status['current_version'] ?? 0;
-
-        return true === ($status['is_up_to_date'] ?? false) && is_int($version) && $version > 0;
     }
 
     /**
@@ -165,6 +166,8 @@ final class InstallerService implements InstallerServiceInterface
      * and install afresh.
      *
      * @throws RuntimeException When any step fails; the cause is the previous exception.
+     *
+     * @mago-expect analysis:possibly-false-operand A size that cannot be read (false) is not greater than zero.
      */
     #[Override]
     public function repair(): bool
@@ -175,7 +178,7 @@ final class InstallerService implements InstallerServiceInterface
             if (file_exists($dbPath)) {
                 $backupPath = $dbPath . '.backup.' . date('Y-m-d-His');
                 if (
-                    0 < (int) filesize($dbPath)
+                    0 < filesize($dbPath)
                     && ! Filesystem::silently(static fn(): bool => copy($dbPath, $backupPath))
                 ) {
                     throw new RuntimeException(sprintf('Failed to back up the database to %s', $backupPath));

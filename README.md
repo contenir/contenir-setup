@@ -134,6 +134,7 @@ composer static-analysis   # mago analyze
 composer test              # unit suite: collaborators doubled, no I/O
 composer test-integration  # integration suite: temp directories, SQLite, laminas-view templates
 composer test-coverage     # both suites, clover.xml for Codecov
+composer mutation-test     # Infection over both suites (needs Xdebug or PCOV)
 ```
 
 `stubs/` declares the three Contenir CMS application classes that

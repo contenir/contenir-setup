@@ -10,6 +10,8 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+use function error_clear_last;
+use function error_get_last;
 use function restore_error_handler;
 use function set_error_handler;
 use function trigger_error;
@@ -19,6 +21,20 @@ use const E_USER_WARNING;
 #[Group('unit')]
 final class FilesystemTest extends TestCase
 {
+    #[Test]
+    public function keepsTheWarningFromPhpsOwnErrorHandler(): void
+    {
+        error_clear_last();
+
+        Filesystem::silently(static function (): bool {
+            trigger_error('failed', E_USER_WARNING);
+
+            return false;
+        });
+
+        static::assertNull(error_get_last());
+    }
+
     #[Test]
     public function reportsAFailedOperationWithoutItsWarning(): void
     {
