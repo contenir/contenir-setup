@@ -11,12 +11,16 @@ use Contenir\Setup\Handler\InstallHandler;
 use Contenir\Setup\Handler\InstallHandlerFactory;
 use Contenir\Setup\Service\CacheService;
 use Contenir\Setup\Service\CacheServiceFactory;
+use Contenir\Setup\Service\CacheServiceInterface;
 use Contenir\Setup\Service\DatabaseConfigWriter;
 use Contenir\Setup\Service\DatabaseConfigWriterFactory;
+use Contenir\Setup\Service\DatabaseConfigWriterInterface;
 use Contenir\Setup\Service\DiagnosticsService;
 use Contenir\Setup\Service\DiagnosticsServiceFactory;
+use Contenir\Setup\Service\DiagnosticsServiceInterface;
 use Contenir\Setup\Service\InstallerService;
 use Contenir\Setup\Service\InstallerServiceFactory;
+use Contenir\Setup\Service\InstallerServiceInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -40,6 +44,12 @@ final class ConfigProviderTest extends TestCase
     {
         static::assertSame(
             [
+                'aliases'   => [
+                    InstallerServiceInterface::class     => InstallerService::class,
+                    DiagnosticsServiceInterface::class   => DiagnosticsService::class,
+                    CacheServiceInterface::class         => CacheService::class,
+                    DatabaseConfigWriterInterface::class => DatabaseConfigWriter::class,
+                ],
                 'factories' => [
                     InstallHandler::class       => InstallHandlerFactory::class,
                     CompleteHandler::class      => CompleteHandlerFactory::class,

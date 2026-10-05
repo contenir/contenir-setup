@@ -33,7 +33,11 @@ extracted from the CMS. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
 - Requires PHP 8.3, 8.4 or 8.5, laminas/laminas-db 2.20+,
   laminas/laminas-servicemanager 3.22+, laminas/laminas-view 2.33+ and
   laminas/laminas-diactoros 3.3+.
-- `ConfigProvider` and every `*Factory` class are `final`.
+- Every concrete class is `final`: `ConfigProvider`, `InstallHandler`,
+  `CompleteHandler`, `InstallerService`, `DiagnosticsService`,
+  `DatabaseConfigWriter`, `CacheService` and every factory. The handlers
+  and their factories depend on the new service interfaces, which
+  `ConfigProvider` aliases to the shipped services.
 - The final install step renders the completion page itself instead of
   redirecting to `/setup/complete`; `CompleteHandler` now only redirects to
   `/setup` (not installed) or answers 404 (installed).
@@ -69,6 +73,9 @@ extracted from the CMS. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
 
 ### Added
 
+- `InstallerServiceInterface`, `DiagnosticsServiceInterface`,
+  `DatabaseConfigWriterInterface` and `CacheServiceInterface`, the extension
+  points for hosts and tests to substitute the services.
 - Continuous integration on PHP 8.3, 8.4 and 8.5 against lowest, locked and
   latest dependencies, with coverage reported to Codecov.
 - Unit (no I/O) and integration (temp directories, SQLite, laminas-view

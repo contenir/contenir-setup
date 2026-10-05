@@ -9,6 +9,7 @@ use Contenir\Service\Migration\MigrationService;
 use Exception;
 use Laminas\Db\Adapter\Adapter;
 use Laminas\Db\ResultSet\ResultSet;
+use Override;
 use RuntimeException;
 use User\Manager\UserManager;
 
@@ -35,7 +36,7 @@ use function unlink;
  *
  * @mago-expect lint:cyclomatic-complexity Install, validate and repair share one 0.x class; splitting it is a suggested follow-up.
  */
-class InstallerService
+final class InstallerService implements InstallerServiceInterface
 {
     /**
      * @param array<array-key, mixed> $config The application config; reads db.cms.database.
@@ -55,6 +56,7 @@ class InstallerService
      *
      * @throws Exception When the user manager rejects the user.
      */
+    #[Override]
     public function createAdminUser(array $data): void
     {
         $data['role_id'] = 'administrator';
@@ -68,6 +70,7 @@ class InstallerService
      *
      * @throws RuntimeException When the database path is not configured.
      */
+    #[Override]
     public function databaseFileExists(): bool
     {
         $dbPath = $this->getDatabasePath();
@@ -82,6 +85,7 @@ class InstallerService
      *
      * @mago-expect analysis:mixed-assignment Config values are untyped; each level is checked here.
      */
+    #[Override]
     public function getDatabasePath(): string
     {
         $db       = $this->config['db'] ?? null;
@@ -103,6 +107,7 @@ class InstallerService
      *
      * @throws RuntimeException When any step fails; the cause is the previous exception.
      */
+    #[Override]
     public function install(?array $adminData = null): bool
     {
         try {
@@ -137,6 +142,7 @@ class InstallerService
      *
      * @mago-expect analysis:mixed-assignment The host's migration status is untyped; it is checked here.
      */
+    #[Override]
     public function isInstalled(): bool
     {
         try {
@@ -160,6 +166,7 @@ class InstallerService
      *
      * @throws RuntimeException When any step fails; the cause is the previous exception.
      */
+    #[Override]
     public function repair(): bool
     {
         try {
@@ -191,6 +198,7 @@ class InstallerService
      *
      * @return list<string> Problems found; empty when the installation is valid.
      */
+    #[Override]
     public function validate(): array
     {
         if (! $this->isInstalled()) {

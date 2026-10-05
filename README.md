@@ -77,13 +77,26 @@ The handler redirects to this exact path.
 | `Service\InstallerService` | Migrates, creates the administrator, validates and repairs the CMS database |
 | `ConfigProvider` and the `*Factory` classes | Container wiring and the `setup` template path |
 
+Every class is `final`. To change a service, implement its interface
+(`InstallerServiceInterface`, `DiagnosticsServiceInterface`,
+`DatabaseConfigWriterInterface`, `CacheServiceInterface`) and point the
+interface alias at your implementation; the handlers depend on the
+interfaces:
+
+```php
+'dependencies' => [
+    'aliases'   => [InstallerServiceInterface::class => SiteInstallerService::class],
+    'factories' => [SiteInstallerService::class => SiteInstallerServiceFactory::class],
+],
+```
+
 The services can be used on their own, for example from a CLI command:
 
 ```php
-$report = $container->get(DiagnosticsService::class)->runAll();
+$report = $container->get(DiagnosticsServiceInterface::class)->runAll();
 // ['success' => bool, 'results' => [key => ['success' => bool, 'message' => string]], 'errors' => [key => message]]
 
-$installer = $container->get(InstallerService::class);
+$installer = $container->get(InstallerServiceInterface::class);
 if (! $installer->isInstalled()) {
     $installer->install(['username' => 'admin', 'email' => 'admin@example.com', 'password' => $password]);
 }

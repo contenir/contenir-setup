@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Contenir\Setup\Service;
 
+use Override;
 use RuntimeException;
 
 use function dirname;
@@ -26,7 +27,7 @@ use function var_export;
  *
  * @mago-expect lint:cyclomatic-complexity Each filesystem precondition is reported separately, as in 0.x.
  */
-class DatabaseConfigWriter
+final class DatabaseConfigWriter implements DatabaseConfigWriterInterface
 {
     private const string DEFAULT_PATH = 'config/autoload/db.local.php';
 
@@ -105,6 +106,7 @@ class DatabaseConfigWriter
     /**
      * Whether write() can create or replace the config file.
      */
+    #[Override]
     public function isWritable(): bool
     {
         $configDir = dirname($this->configPath);
@@ -127,6 +129,7 @@ class DatabaseConfigWriter
      *
      * @throws RuntimeException If unable to write the configuration.
      */
+    #[Override]
     public function write(array $config): bool
     {
         $configDir = dirname($this->configPath);

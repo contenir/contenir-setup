@@ -66,24 +66,45 @@ installation and answers 404 after. The `/setup/complete` route can be
 removed. If you override `setup::complete`, it still receives the same
 variables.
 
-## Final wiring classes
+## Every concrete class is final; substitute through interfaces
 
-`ConfigProvider`, `Handler\CompleteHandlerFactory`,
-`Handler\InstallHandlerFactory` and the `Service\*Factory` classes are
-`final`. The handlers and services stay extendable. Replace a factory
-instead of extending it:
+Every class is `final`: `ConfigProvider`, both handlers, the four services
+and every factory. The extension points are four new interfaces, which the
+handlers and their factories now depend on:
+
+| Service | Interface (fetched by the handler factories) | Default alias target |
+| --- | --- | --- |
+| Installer | `Service\InstallerServiceInterface` | `Service\InstallerService` |
+| Diagnostics | `Service\DiagnosticsServiceInterface` | `Service\DiagnosticsService` |
+| Database config | `Service\DatabaseConfigWriterInterface` | `Service\DatabaseConfigWriter` |
+| Cache | `Service\CacheServiceInterface` | `Service\CacheService` |
+
+`ConfigProvider` registers each interface as an alias of its service, so to
+replace a service, point the alias at your implementation instead of
+extending the class:
 
 ```php
 // before
-class MyInstallerServiceFactory extends InstallerServiceFactory { /* ... */ }
+class SiteInstallerService extends InstallerService { /* ... */ }
 
-// 2.0: register your own factory for the service
 'dependencies' => [
-    'factories' => [
-        InstallerService::class => MyInstallerServiceFactory::class,
-    ],
+    'factories' => [InstallerService::class => SiteInstallerServiceFactory::class],
+],
+
+// 2.0
+final class SiteInstallerService implements InstallerServiceInterface { /* ... */ }
+
+'dependencies' => [
+    'aliases'   => [InstallerServiceInterface::class => SiteInstallerService::class],
+    'factories' => [SiteInstallerService::class => SiteInstallerServiceFactory::class],
 ],
 ```
+
+An implementation may also wrap the shipped service (decoration) rather than
+reimplement it. The handler constructors now take the interfaces, a wider
+type, so code that constructs them with the shipped services keeps working.
+Factories are replaced the same way: register your own factory for the
+service instead of extending ours.
 
 ## Default paths follow the working directory
 
@@ -116,15 +137,12 @@ $diagnostics->checkPhpVersion(); // error below DiagnosticsService::MINIMUM_PHP_
 ```
 
 `checkPhpVersion()` and `checkPhpExtensions()` gained optional parameters
-(the version to check, the extensions to require). Subclasses that override
-them must add the same parameters:
+(the version to check, the extensions to require):
 
 ```php
-// before
-public function checkPhpExtensions(): void
-
 // 2.0
-public function checkPhpExtensions(array $requiredExtensions = self::REQUIRED_EXTENSIONS): void
+$diagnostics->checkPhpVersion('8.2.29');      // check a given version
+$diagnostics->checkPhpExtensions(['intl']);   // require given extensions
 ```
 
 ## Stricter migration status

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Contenir\Setup\Service;
 
+use Override;
+
 use function chmod;
 use function extension_loaded;
 use function getcwd;
@@ -22,14 +24,14 @@ use const PHP_VERSION;
  * Directories are resolved against the base path: the working directory by
  * default, which Mezzio sets to the application root.
  *
- * @psalm-type Result = array{success: bool, message: string}
- * @psalm-type Report = array{success: bool, results: array<string, Result>, errors: array<string, string>}
+ * @psalm-import-type Result from DiagnosticsServiceInterface
+ * @psalm-import-type Report from DiagnosticsServiceInterface
  *
  * @api
  *
  * @mago-expect lint:too-many-methods The ten public methods are the 0.x API.
  */
-class DiagnosticsService
+final class DiagnosticsService implements DiagnosticsServiceInterface
 {
     public const string MINIMUM_PHP_VERSION = '8.3.0';
 
@@ -163,6 +165,7 @@ class DiagnosticsService
     /**
      * @return array<string, string>
      */
+    #[Override]
     public function getErrors(): array
     {
         return $this->errors;
@@ -171,6 +174,7 @@ class DiagnosticsService
     /**
      * @return array<string, Result>
      */
+    #[Override]
     public function getResults(): array
     {
         return $this->results;
@@ -179,6 +183,7 @@ class DiagnosticsService
     /**
      * Whether the checks run so far found no errors.
      */
+    #[Override]
     public function hasPassed(): bool
     {
         return [] === $this->errors;
@@ -189,6 +194,7 @@ class DiagnosticsService
      *
      * @return Report
      */
+    #[Override]
     public function runAll(): array
     {
         $this->results = [];

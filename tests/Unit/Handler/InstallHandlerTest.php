@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Contenir\Setup\Tests\Unit\Handler;
 
 use Contenir\Setup\Handler\InstallHandler;
-use Contenir\Setup\Service\CacheService;
-use Contenir\Setup\Service\DatabaseConfigWriter;
-use Contenir\Setup\Service\DiagnosticsService;
-use Contenir\Setup\Service\InstallerService;
+use Contenir\Setup\Service\CacheServiceInterface;
+use Contenir\Setup\Service\DatabaseConfigWriterInterface;
+use Contenir\Setup\Service\DiagnosticsServiceInterface;
+use Contenir\Setup\Service\InstallerServiceInterface;
 use Laminas\Db\Adapter\Adapter;
 use Laminas\Db\Adapter\Exception\RuntimeException as DbRuntimeException;
 use Laminas\Diactoros\ServerRequest;
@@ -32,11 +32,11 @@ final class InstallHandlerTest extends TestCase
     /** @var array<string, mixed> */
     private array $rendered = [];
 
-    private InstallerService&Stub $installer;
+    private InstallerServiceInterface&Stub $installer;
 
-    private DiagnosticsService&Stub $diagnostics;
+    private DiagnosticsServiceInterface&Stub $diagnostics;
 
-    private DatabaseConfigWriter&Stub $writer;
+    private DatabaseConfigWriterInterface&Stub $writer;
 
     private Adapter&Stub $adapter;
 
@@ -154,13 +154,13 @@ final class InstallHandlerTest extends TestCase
     #[Test]
     public function installsWithTheAdministratorFromTheForm(): void
     {
-        $installer = $this->createMock(InstallerService::class);
+        $installer = $this->createMock(InstallerServiceInterface::class);
         $installer->expects($this->once())
             ->method('install')
             ->with(['username' => 'root', 'email' => 'root@example.com', 'password' => self::ADMIN_FORM_VALUE])
             ->willReturn(true);
         $this->installer = $installer;
-        $cache           = $this->createMock(CacheService::class);
+        $cache           = $this->createMock(CacheServiceInterface::class);
         $cache->expects($this->once())->method('clearAll')->willReturn(['success' => true, 'message' => '']);
 
         $installer->method('validate')->willReturn(['Missing default roles']);
@@ -202,7 +202,7 @@ final class InstallHandlerTest extends TestCase
     public function redirectsAfterRunningTheDiagnostics(bool $passed, string $location): void
     {
         $this->diagnostics->method('runAll')->willReturn(['success' => $passed, 'results' => [], 'errors' => []]);
-        $cache = $this->createMock(CacheService::class);
+        $cache = $this->createMock(CacheServiceInterface::class);
         $cache->expects($this->once())->method('clearAll')->willReturn(['success' => true, 'message' => '']);
 
         $response = $this->post(['action' => 'diagnostics'], $cache);
@@ -217,7 +217,7 @@ final class InstallHandlerTest extends TestCase
     #[DataProvider('incompleteAdministrators')]
     public function refusesToInstallWithoutCompleteAdministratorCredentials(array $form): void
     {
-        $installer = $this->createMock(InstallerService::class);
+        $installer = $this->createMock(InstallerServiceInterface::class);
         $installer->expects($this->never())->method('install');
         $this->installer = $installer;
 
@@ -348,10 +348,10 @@ final class InstallHandlerTest extends TestCase
     public function savesTheDatabaseConfigAndClearsTheCache(): void
     {
         $data   = ['action' => 'database-config', 'cms_database' => 'data/cms/cms.db'];
-        $writer = $this->createMock(DatabaseConfigWriter::class);
+        $writer = $this->createMock(DatabaseConfigWriterInterface::class);
         $writer->expects($this->once())->method('write')->with($data)->willReturn(true);
         $this->writer = $writer;
-        $cache        = $this->createMock(CacheService::class);
+        $cache        = $this->createMock(CacheServiceInterface::class);
         $cache->expects($this->once())->method('clearAll')->willReturn(['success' => true, 'message' => '']);
 
         $response = $this->post($data, $cache);
@@ -382,13 +382,13 @@ final class InstallHandlerTest extends TestCase
     protected function setUp(): void
     {
         $this->rendered    = [];
-        $this->installer   = $this->createStub(InstallerService::class);
-        $this->diagnostics = $this->createStub(DiagnosticsService::class);
-        $this->writer      = $this->createStub(DatabaseConfigWriter::class);
+        $this->installer   = $this->createStub(InstallerServiceInterface::class);
+        $this->diagnostics = $this->createStub(DiagnosticsServiceInterface::class);
+        $this->writer      = $this->createStub(DatabaseConfigWriterInterface::class);
         $this->adapter     = $this->createStub(Adapter::class);
     }
 
-    private function handle(ServerRequest $request, ?CacheService $cache = null): ResponseInterface
+    private function handle(ServerRequest $request, ?CacheServiceInterface $cache = null): ResponseInterface
     {
         $renderer = $this->createStub(TemplateRendererInterface::class);
         $renderer->method('render')
@@ -403,7 +403,7 @@ final class InstallHandlerTest extends TestCase
             $this->installer,
             $this->diagnostics,
             $this->writer,
-            $cache ?? $this->createStub(CacheService::class),
+            $cache ?? $this->createStub(CacheServiceInterface::class),
             $this->adapter,
         ))->handle($request);
     }
@@ -411,7 +411,7 @@ final class InstallHandlerTest extends TestCase
     /**
      * @param array<string, mixed> $body
      */
-    private function post(array $body, ?CacheService $cache = null): ResponseInterface
+    private function post(array $body, ?CacheServiceInterface $cache = null): ResponseInterface
     {
         return $this->handle((new ServerRequest(method: 'POST'))->withParsedBody($body), $cache);
     }
