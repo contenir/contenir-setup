@@ -12,7 +12,7 @@ these are the changes that can affect you.
 | laminas/laminas-diactoros | ^3.0 | ^3.3 |
 
 ```bash
-composer require contenir/contenir-setup:^2.0
+composer require contenir/contenir-setup-mezzio:^2.0
 ```
 
 ## The wizard closes after installation (security)
@@ -172,3 +172,15 @@ database anyway.
 The `success` and `error` query parameters are shown exactly as the request
 parsed them. Links that pre-encoded a message twice will now show the
 encoded form.
+
+## Package renamed in 2.1
+
+From 2.1, the package is published as `contenir/contenir-setup-mezzio`. It declares
+`replace` for `contenir/contenir-setup`, so the two can never be installed together.
+Switch the requirement:
+
+```bash
+composer remove contenir/contenir-setup && composer require contenir/contenir-setup-mezzio:^2.1
+```
+
+No code changes are needed: namespaces and classes are unchanged.
