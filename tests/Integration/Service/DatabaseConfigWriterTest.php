@@ -12,11 +12,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-use function chdir;
 use function chmod;
 use function file_get_contents;
 use function file_put_contents;
-use function getcwd;
 use function mkdir;
 
 #[Group('integration')]
@@ -211,14 +209,7 @@ final class DatabaseConfigWriterTest extends TestCase
     #[Test]
     public function writesToConfigAutoloadInTheWorkingDirectoryByDefault(): void
     {
-        $cwd = (string) getcwd();
-        chdir($this->tmpDir);
-
-        try {
-            (new DatabaseConfigWriter())->write(['cms_database' => 'cms.db']);
-        } finally {
-            chdir($cwd);
-        }
+        (new DatabaseConfigWriter())->write(['cms_database' => 'cms.db']);
 
         static::assertFileExists($this->path('config/autoload/db.local.php'));
     }
