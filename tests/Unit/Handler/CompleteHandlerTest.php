@@ -16,6 +16,20 @@ use PHPUnit\Framework\TestCase;
 final class CompleteHandlerTest extends TestCase
 {
     #[Test]
+    public function answersNotFoundOnceInstalled(): void
+    {
+        $installer = $this->createMock(InstallerService::class);
+        $installer->method('isInstalled')->willReturn(true);
+        $installer->expects($this->never())->method('validate');
+        $renderer = $this->createMock(TemplateRendererInterface::class);
+        $renderer->expects($this->never())->method('render');
+
+        $response = (new CompleteHandler($renderer, $installer))->handle(new ServerRequest());
+
+        static::assertSame([404, ''], [$response->getStatusCode(), (string) $response->getBody()]);
+    }
+
+    #[Test]
     public function redirectsToSetupUntilInstalled(): void
     {
         $installer = $this->createStub(InstallerService::class);
@@ -26,23 +40,5 @@ final class CompleteHandlerTest extends TestCase
         );
 
         static::assertSame([302, '/setup'], [$response->getStatusCode(), $response->getHeaderLine('Location')]);
-    }
-
-    #[Test]
-    public function rendersTheCompletionPageWithValidationWarnings(): void
-    {
-        $installer = $this->createStub(InstallerService::class);
-        $installer->method('isInstalled')->willReturn(true);
-        $installer->method('validate')->willReturn(['Missing default roles']);
-
-        $renderer = $this->createMock(TemplateRendererInterface::class);
-        $renderer->expects($this->once())
-            ->method('render')
-            ->with('setup::complete', ['title' => 'Installation Complete', 'errors' => ['Missing default roles']])
-            ->willReturn('<p>done</p>');
-
-        $response = (new CompleteHandler($renderer, $installer))->handle(new ServerRequest());
-
-        static::assertSame('<p>done</p>', (string) $response->getBody());
     }
 }

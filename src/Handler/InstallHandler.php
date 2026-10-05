@@ -11,6 +11,7 @@ use Contenir\Setup\Service\InstallerService;
 use Exception;
 use Laminas\Db\Adapter\Adapter;
 use Laminas\Db\Adapter\Exception\RuntimeException as DbRuntimeException;
+use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use Mezzio\Template\TemplateRendererInterface;
@@ -22,6 +23,9 @@ use RuntimeException;
 
 use function is_array;
 use function is_string;
+use function mb_strlen;
+use function sprintf;
+use function trim;
 use function urlencode;
 
 /**
@@ -29,7 +33,11 @@ use function urlencode;
  * connection test and administrator account.
  *
  * Each POST step redirects (post/redirect/get) to `/setup?step=...` with a
- * `success` or `error` message, which the following GET renders.
+ * `success` or `error` message, which the following GET renders. The final
+ * step renders the completion page itself.
+ *
+ * Once InstallerService::isInstalled() is true, every request (GET or POST,
+ * whatever its parameters) gets an empty 404 and nothing is run or written.
  *
  * @api
  *
@@ -37,6 +45,8 @@ use function urlencode;
  */
 class InstallHandler implements RequestHandlerInterface
 {
+    public const int MINIMUM_PASSWORD_LENGTH = 8;
+
     /**
      * @mago-expect lint:excessive-parameter-list The 0.x constructor signature is kept.
      */
@@ -48,6 +58,37 @@ class InstallHandler implements RequestHandlerInterface
         private CacheService $cacheService,
         private Adapter $adapter,
     ) {}
+
+    /**
+     * The administrator account from the form, or null unless a username, an
+     * email and a password of at least MINIMUM_PASSWORD_LENGTH characters
+     * were all given. There are no defaults.
+     *
+     * @param array<array-key, mixed> $data
+     *
+     * @return array{username: string, email: string, password: string}|null
+     *
+     * @mago-expect analysis:mixed-assignment Form values are untyped; their types are checked here.
+     */
+    private static function adminCredentials(array $data): ?array
+    {
+        $username = $data['admin_username'] ?? null;
+        $email    = $data['admin_email'] ?? null;
+        $password = $data['admin_password'] ?? null;
+
+        if (
+            ! is_string($username)
+            || '' === trim($username)
+            || ! is_string($email)
+            || '' === trim($email)
+            || ! is_string($password)
+            || mb_strlen($password) < self::MINIMUM_PASSWORD_LENGTH
+        ) {
+            return null;
+        }
+
+        return ['username' => $username, 'email' => $email, 'password' => $password];
+    }
 
     /**
      * The message for a `success` or `error` query parameter: "1" means the
@@ -65,6 +106,10 @@ class InstallHandler implements RequestHandlerInterface
     #[Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
+        if ($this->installerService->isInstalled()) {
+            return new EmptyResponse(404);
+        }
+
         if ('POST' === $request->getMethod()) {
             $body     = $request->getParsedBody();
             $response = $this->handleAction(is_array($body) ? $body : []);
@@ -113,12 +158,19 @@ class InstallHandler implements RequestHandlerInterface
      */
     private function install(array $data): ResponseInterface
     {
+        $admin = self::adminCredentials($data);
+        if (null === $admin) {
+            return new RedirectResponse(
+                '/setup?step=admin-user&error='
+                    . urlencode(sprintf(
+                        'An administrator username, email and a password of at least %d characters are required.',
+                        self::MINIMUM_PASSWORD_LENGTH,
+                    )),
+            );
+        }
+
         try {
-            $installed = $this->installerService->install([
-                'username' => $data['admin_username'] ?? 'admin',
-                'email'    => $data['admin_email'] ?? '',
-                'password' => $data['admin_password'] ?? '',
-            ]);
+            $installed = $this->installerService->install($admin);
         } catch (Exception $e) {
             return new RedirectResponse('/setup?step=admin-user&error=' . urlencode($e->getMessage()));
         }
@@ -129,7 +181,10 @@ class InstallHandler implements RequestHandlerInterface
 
         $this->cacheService->clearAll();
 
-        return new RedirectResponse('/setup/complete');
+        return new HtmlResponse($this->renderer->render('setup::complete', [
+            'title'  => 'Installation Complete',
+            'errors' => $this->installerService->validate(),
+        ]));
     }
 
     /**
@@ -172,7 +227,7 @@ class InstallHandler implements RequestHandlerInterface
             'success'     => $success,
             'diagnostics' => $diagnostics,
             'formData'    => [],
-            'isInstalled' => $this->installerService->isInstalled(),
+            'isInstalled' => false,
             'dbExists'    => $dbExists,
         ]));
     }

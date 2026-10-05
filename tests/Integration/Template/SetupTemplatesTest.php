@@ -49,7 +49,7 @@ final class SetupTemplatesTest extends TestCase
         return [
             'installed'          => [
                 ['step' => 'installed', 'dbExists' => true, 'isInstalled' => true],
-                'System Already Installed',
+                'Existing Database Found',
             ],
             'installed, pending' => [['step' => 'installed', 'dbExists' => false], 'Pending'],
             'welcome'            => [['step' => 'welcome'], 'Welcome to Contenir CMS'],
@@ -63,6 +63,23 @@ final class SetupTemplatesTest extends TestCase
                 '&lt;b&gt;bad&lt;/b&gt;',
             ],
         ];
+    }
+
+    #[Test]
+    public function prefillsNoAdministratorUsername(): void
+    {
+        $html = $this->render('install', [
+            'title'       => 'Contenir CMS Setup',
+            'step'        => 'admin-user',
+            'error'       => null,
+            'success'     => null,
+            'diagnostics' => null,
+            'formData'    => [],
+            'isInstalled' => false,
+            'dbExists'    => false,
+        ]);
+
+        static::assertStringNotContainsString('value="admin"', $html);
     }
 
     /**
@@ -96,6 +113,15 @@ final class SetupTemplatesTest extends TestCase
         $html = $this->render('complete', ['title' => 'Installation Complete', 'errors' => $errors]);
 
         static::assertStringContainsString($expected, $html);
+    }
+
+    #[Test]
+    public function showsNoDefaultCredentialsOnTheCompletionPage(): void
+    {
+        $html = $this->render('complete', ['title' => 'Installation Complete', 'errors' => []]);
+
+        static::assertStringNotContainsString('Default Login Credentials', $html);
+        static::assertStringNotContainsString('>admin<', $html);
     }
 
     /**

@@ -26,6 +26,9 @@ final class InstallHandlerTest extends TestCase
 {
     private const string ADMIN_FORM_VALUE = 'correct horse battery';
 
+    /** One character short of InstallHandler::MINIMUM_PASSWORD_LENGTH. */
+    private const string SHORT_FORM_VALUE = '1234567';
+
     /** @var array<string, mixed> */
     private array $rendered = [];
 
@@ -45,6 +48,29 @@ final class InstallHandlerTest extends TestCase
         return [
             'passed' => [true, '/setup?step=diagnostics&success=1'],
             'failed' => [false, '/setup?step=diagnostics&error=1'],
+        ];
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function incompleteAdministrators(): array
+    {
+        $complete = [
+            'admin_username' => 'root',
+            'admin_email'    => 'root@example.com',
+            'admin_password' => self::ADMIN_FORM_VALUE,
+        ];
+
+        return [
+            'nothing given'     => [[]],
+            'no username'       => [[...$complete, 'admin_username' => null]],
+            'blank username'    => [[...$complete, 'admin_username' => '  ']],
+            'no email'          => [[...$complete, 'admin_email' => null]],
+            'blank email'       => [[...$complete, 'admin_email' => '']],
+            'no password'       => [[...$complete, 'admin_password' => null]],
+            'short password'    => [[...$complete, 'admin_password' => self::SHORT_FORM_VALUE]],
+            'non-string values' => [['admin_username' => ['root'], 'admin_email' => 1, 'admin_password' => true]],
         ];
     }
 
@@ -100,6 +126,19 @@ final class InstallHandlerTest extends TestCase
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    private static function adminForm(): array
+    {
+        return [
+            'action'         => 'install',
+            'admin_username' => 'root',
+            'admin_email'    => 'root@example.com',
+            'admin_password' => self::ADMIN_FORM_VALUE,
+        ];
+    }
+
     #[Test]
     public function continuesToTheAdminStepWhenTheDatabaseAnswers(): void
     {
@@ -110,19 +149,6 @@ final class InstallHandlerTest extends TestCase
         $response = $this->post(['action' => 'test-connection']);
 
         static::assertSame('/setup?step=admin-user&success=1', $response->getHeaderLine('Location'));
-    }
-
-    #[Test]
-    public function installsWithDefaultAdministratorFieldsWhenTheFormOmitsThem(): void
-    {
-        $installer = $this->createMock(InstallerService::class);
-        $installer->expects($this->once())
-            ->method('install')
-            ->with(['username' => 'admin', 'email' => '', 'password' => ''])
-            ->willReturn(true);
-        $this->installer = $installer;
-
-        $this->post(['action' => 'install']);
     }
 
     #[Test]
@@ -137,23 +163,21 @@ final class InstallHandlerTest extends TestCase
         $cache           = $this->createMock(CacheService::class);
         $cache->expects($this->once())->method('clearAll')->willReturn(['success' => true, 'message' => '']);
 
-        $response = $this->post(
-            [
-                'action'         => 'install',
-                'admin_username' => 'root',
-                'admin_email'    => 'root@example.com',
-                'admin_password' => self::ADMIN_FORM_VALUE,
-            ],
-            $cache,
-        );
+        $installer->method('validate')->willReturn(['Missing default roles']);
 
-        static::assertSame('/setup/complete', $response->getHeaderLine('Location'));
+        $response = $this->post(self::adminForm(), $cache);
+
+        static::assertSame('setup::complete', (string) $response->getBody());
+        static::assertSame(
+            ['title' => 'Installation Complete', 'errors' => ['Missing default roles']],
+            $this->rendered,
+        );
     }
 
     #[Test]
     public function passesThePageStateToTheTemplate(): void
     {
-        $this->installer->method('isInstalled')->willReturn(true);
+        $this->installer->method('isInstalled')->willReturn(false);
         $this->installer->method('databaseFileExists')->willReturn(true);
 
         $this->handle(new ServerRequest());
@@ -166,7 +190,7 @@ final class InstallHandlerTest extends TestCase
                 'success'     => null,
                 'diagnostics' => null,
                 'formData'    => [],
-                'isInstalled' => true,
+                'isInstalled' => false,
                 'dbExists'    => true,
             ],
             $this->rendered,
@@ -184,6 +208,25 @@ final class InstallHandlerTest extends TestCase
         $response = $this->post(['action' => 'diagnostics'], $cache);
 
         static::assertSame($location, $response->getHeaderLine('Location'));
+    }
+
+    /**
+     * @param array<string, mixed> $form
+     */
+    #[Test]
+    #[DataProvider('incompleteAdministrators')]
+    public function refusesToInstallWithoutCompleteAdministratorCredentials(array $form): void
+    {
+        $installer = $this->createMock(InstallerService::class);
+        $installer->expects($this->never())->method('install');
+        $this->installer = $installer;
+
+        $response = $this->post(['action' => 'install', ...$form]);
+
+        static::assertSame(
+            '/setup?step=admin-user&error=An+administrator+username%2C+email+and+a+password+of+at+least+8+characters+are+required.',
+            $response->getHeaderLine('Location'),
+        );
     }
 
     #[Test]
@@ -243,7 +286,7 @@ final class InstallHandlerTest extends TestCase
     {
         $this->installer->method('install')->willReturn(false);
 
-        $response = $this->post(['action' => 'install']);
+        $response = $this->post(self::adminForm());
 
         static::assertSame('/setup?step=admin-user&error=validation-failed', $response->getHeaderLine('Location'));
     }
@@ -253,7 +296,7 @@ final class InstallHandlerTest extends TestCase
     {
         $this->installer->method('install')->willThrowException(new RuntimeException('Database installation failed'));
 
-        $response = $this->post(['action' => 'install']);
+        $response = $this->post(self::adminForm());
 
         static::assertSame(
             '/setup?step=admin-user&error=Database+installation+failed',
