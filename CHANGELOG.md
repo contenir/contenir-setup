@@ -4,7 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.1.0] - Unreleased
+
+### Changed
+
+- Renamed from `contenir/contenir-setup` to `contenir/contenir-setup-mezzio`. The package
+  declares `replace` for the old name; require `contenir/contenir-setup-mezzio`
+  instead. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
 
 ### Added
 

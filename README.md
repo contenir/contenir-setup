@@ -1,7 +1,9 @@
-# contenir/contenir-setup
+# contenir/contenir-setup-mezzio
 
-[![Continuous Integration](https://github.com/contenir/contenir-setup/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/contenir/contenir-setup/actions/workflows/continuous-integration.yml)
-[![codecov](https://codecov.io/gh/contenir/contenir-setup/graph/badge.svg)](https://codecov.io/gh/contenir/contenir-setup)
+Formerly `contenir/contenir-setup`; the old package is abandoned in favour of this one.
+
+[![Continuous Integration](https://github.com/contenir/contenir-setup-mezzio/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/contenir/contenir-setup-mezzio/actions/workflows/continuous-integration.yml)
+[![codecov](https://codecov.io/gh/contenir/contenir-setup-mezzio/graph/badge.svg)](https://codecov.io/gh/contenir/contenir-setup-mezzio)
 
 Web installer for [Contenir CMS](https://github.com/contenir) on
 [Mezzio](https://docs.mezzio.dev/). It walks an operator through system
@@ -31,7 +33,7 @@ changes from the `master` branch before 2.0.
 ## Install
 
 ```bash
-composer require contenir/contenir-setup
+composer require contenir/contenir-setup-mezzio
 ```
 
 With [laminas-component-installer](https://docs.laminas.dev/laminas-component-installer/)
