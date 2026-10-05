@@ -24,9 +24,9 @@ $siteUsername = $formData['site_username'] ?? '';
     <?php if ($step === 'installed'): ?>
         <div style="text-align: center; margin-bottom: 30px;">
             <div style="font-size: 48px; margin-bottom: 20px; color: #4caf50;">✓</div>
-            <h2>System Already Installed</h2>
+            <h2>Existing Database Found</h2>
             <p style="font-size: 16px; color: #666; margin: 20px 0;">
-                Contenir CMS is already installed and configured.
+                A CMS database already exists, but the installation is not complete.
             </p>
         </div>
 
@@ -51,7 +51,7 @@ $siteUsername = $formData['site_username'] ?? '';
                 </li>
                 <li style="padding: 10px 0;">
                     <strong>Status:</strong>
-                    <span style="color: #4caf50;">Ready</span>
+                    <span style="color: #ff9800;">Setup incomplete</span>
                 </li>
             </ul>
         </div>
@@ -91,8 +91,8 @@ $siteUsername = $formData['site_username'] ?? '';
 
         <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
             <p style="margin: 0; color: #856404;">
-                <strong>Note:</strong> To force a fresh installation workflow, click "Reconfigure Database" above.
-                This allows you to update your database credentials or create a new admin user without deleting existing data.
+                <strong>Note:</strong> Click "Reconfigure Database" to continue the setup wizard with this database.
+                Once the installation is complete the wizard closes: every setup URL answers 404.
             </p>
         </div>
     <?php endif; ?>
@@ -321,7 +321,6 @@ $siteUsername = $formData['site_username'] ?? '';
                 <input
                     type="text"
                     name="admin_username"
-                    value="admin"
                     style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;"
                     required
                 />

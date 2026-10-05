@@ -4,40 +4,197 @@ declare(strict_types=1);
 
 namespace Contenir\Setup\Service;
 
-use Exception;
+use Override;
 
 use function chmod;
 use function extension_loaded;
+use function getcwd;
 use function is_dir;
 use function is_writable;
 use function mkdir;
-use function realpath;
 use function version_compare;
 
 use const PHP_VERSION;
 
 /**
- * Diagnostics Service
+ * Checks the PHP version and extensions, and that the application's data and
+ * config directories exist and are writable. With auto-fix on, missing
+ * directories are created and read-only ones made writable (0755).
  *
- * Performs system diagnostics and auto-repairs common issues.
- * Checks file permissions, required directories, PHP extensions, and configuration.
+ * Directories are resolved against the base path: the working directory by
+ * default, which Mezzio sets to the application root.
+ *
+ * @psalm-import-type Result from DiagnosticsServiceInterface
+ * @psalm-import-type Report from DiagnosticsServiceInterface
+ *
+ * @api
+ *
+ * @mago-expect lint:too-many-methods The ten public methods are the 0.x API.
  */
-class DiagnosticsService
+final class DiagnosticsService implements DiagnosticsServiceInterface
 {
-    private array $config;
-    private array $results = [];
-    private array $errors  = [];
-    private bool $autoFix;
+    public const string MINIMUM_PHP_VERSION = '8.3.0';
 
-    public function __construct(array $config, bool $autoFix = true)
-    {
-        $this->config  = $config;
-        $this->autoFix = $autoFix;
+    public const array REQUIRED_EXTENSIONS = ['pdo', 'pdo_sqlite', 'json', 'mbstring', 'openssl', 'session'];
+
+    /** Directories that must exist, relative to the base path. */
+    private const array REQUIRED_DIRECTORIES = ['data', 'data/cms', 'data/cache', 'config', 'config/autoload'];
+
+    /** Directories that must be writable, relative to the base path. */
+    private const array WRITABLE_DIRECTORIES = ['data', 'data/cms', 'data/cache', 'config/autoload'];
+
+    /** @var array<string, Result> */
+    private array $results = [];
+
+    /** @var array<string, string> */
+    private array $errors = [];
+
+    private readonly string $basePath;
+
+    /**
+     * @param array<array-key, mixed> $config The application config (currently unused).
+     * @param string|null $basePath The application root; defaults to the working directory.
+     *
+     * @mago-expect analysis:unused-property Kept for constructor compatibility with earlier releases.
+     */
+    public function __construct(
+        private readonly array $config,
+        private readonly bool $autoFix = true,
+        ?string $basePath = null,
+    ) {
+        $cwd            = getcwd();
+        $this->basePath = $basePath ?? (false === $cwd ? '.' : $cwd);
     }
 
     /**
-     * Run all diagnostic tests
+     * Check the application config directory exists and is writable.
      */
+    public function checkConfiguration(): void
+    {
+        $configDir = "{$this->basePath}/config/autoload";
+
+        if (is_dir($configDir) && is_writable($configDir)) {
+            $this->addResult('config_directory', 'Configuration directory is writable');
+
+            return;
+        }
+
+        $this->addError('config_directory', 'Configuration directory is not writable or does not exist');
+    }
+
+    /**
+     * Check the required directories exist, creating them when auto-fix is on.
+     */
+    public function checkDirectories(): void
+    {
+        foreach (self::REQUIRED_DIRECTORIES as $name) {
+            $path = "{$this->basePath}/{$name}";
+
+            $this->checkOrFix(
+                "dir_{$name}",
+                static fn(): bool => is_dir($path),
+                static fn(): bool => mkdir($path, permissions: 0o755, recursive: true),
+                ["Directory exists: {$name}", "Directory created: {$name}"],
+                ["Directory does not exist: {$name}", "Failed to create directory: {$name}"],
+            );
+        }
+    }
+
+    /**
+     * Check the writable directories that exist are writable, fixing their
+     * permissions when auto-fix is on.
+     */
+    public function checkPermissions(): void
+    {
+        foreach (self::WRITABLE_DIRECTORIES as $name) {
+            $path = "{$this->basePath}/{$name}";
+
+            if (! is_dir($path)) {
+                continue;
+            }
+
+            $this->checkOrFix(
+                "writable_{$name}",
+                static fn(): bool => is_writable($path),
+                static fn(): bool => chmod($path, permissions: 0o755),
+                ["Directory is writable: {$name}", "Directory permissions fixed: {$name}"],
+                ["Directory is not writable: {$name}", "Failed to make directory writable: {$name}"],
+            );
+        }
+    }
+
+    /**
+     * Check the required PHP extensions are loaded.
+     *
+     * @param list<non-empty-string> $requiredExtensions Defaults to REQUIRED_EXTENSIONS.
+     */
+    public function checkPhpExtensions(array $requiredExtensions = self::REQUIRED_EXTENSIONS): void
+    {
+        foreach ($requiredExtensions as $extension) {
+            if (! extension_loaded($extension)) {
+                $this->addError("extension_{$extension}", "Required PHP extension not loaded: {$extension}");
+
+                continue;
+            }
+
+            $this->addResult("extension_{$extension}", "Extension {$extension} is loaded");
+        }
+    }
+
+    /**
+     * Check the PHP version meets the minimum requirement.
+     *
+     * @param string $currentVersion Defaults to the running PHP version.
+     */
+    public function checkPhpVersion(string $currentVersion = PHP_VERSION): void
+    {
+        $minVersion = self::MINIMUM_PHP_VERSION;
+
+        if (version_compare($currentVersion, $minVersion, operator: '>=')) {
+            $this->addResult('php_version', "PHP version {$currentVersion} meets requirements");
+
+            return;
+        }
+
+        $this->addError(
+            'php_version',
+            "PHP version {$currentVersion} does not meet minimum requirement {$minVersion}",
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    #[Override]
+    public function getErrors(): array
+    {
+        return $this->errors;
+    }
+
+    /**
+     * @return array<string, Result>
+     */
+    #[Override]
+    public function getResults(): array
+    {
+        return $this->results;
+    }
+
+    /**
+     * Whether the checks run so far found no errors.
+     */
+    #[Override]
+    public function hasPassed(): bool
+    {
+        return [] === $this->errors;
+    }
+
+    /**
+     * Run every check and return the report.
+     *
+     * @return Report
+     */
+    #[Override]
     public function runAll(): array
     {
         $this->results = [];
@@ -50,247 +207,51 @@ class DiagnosticsService
         $this->checkConfiguration();
 
         return [
-            'success' => empty($this->errors),
+            'success' => $this->hasPassed(),
             'results' => $this->results,
             'errors'  => $this->errors,
         ];
     }
 
-    /**
-     * Check PHP version meets minimum requirements
-     */
-    public function checkPhpVersion(): void
-    {
-        $minVersion     = '8.1.0';
-        $currentVersion = PHP_VERSION;
-
-        if (version_compare($currentVersion, $minVersion, '>=')) {
-            $this->addResult('php_version', true, "PHP version {$currentVersion} meets requirements");
-        } else {
-            $this->addError(
-                'php_version',
-                "PHP version {$currentVersion} does not meet minimum requirement {$minVersion}"
-            );
-        }
-    }
-
-    /**
-     * Check required PHP extensions are loaded
-     */
-    public function checkPhpExtensions(): void
-    {
-        $requiredExtensions = [
-            'pdo',
-            'pdo_sqlite',
-            'json',
-            'mbstring',
-            'openssl',
-            'session',
-        ];
-
-        foreach ($requiredExtensions as $extension) {
-            if (extension_loaded($extension)) {
-                $this->addResult(
-                    "extension_{$extension}",
-                    true,
-                    "Extension {$extension} is loaded"
-                );
-            } else {
-                $this->addError(
-                    "extension_{$extension}",
-                    "Required PHP extension not loaded: {$extension}"
-                );
-            }
-        }
-    }
-
-    /**
-     * Check required directories exist
-     */
-    public function checkDirectories(): void
-    {
-        $basePath = $this->getBasePath();
-
-        $requiredDirs = [
-            'data'            => $basePath . '/data',
-            'data/cms'        => $basePath . '/data/cms',
-            'data/cache'      => $basePath . '/data/cache',
-            'config'          => $basePath . '/config',
-            'config/autoload' => $basePath . '/config/autoload',
-        ];
-
-        foreach ($requiredDirs as $name => $path) {
-            if (is_dir($path)) {
-                $this->addResult("dir_{$name}", true, "Directory exists: {$name}");
-            } else {
-                if ($this->autoFix) {
-                    if ($this->createDirectory($path)) {
-                        $this->addResult(
-                            "dir_{$name}",
-                            true,
-                            "Directory created: {$name}"
-                        );
-                    } else {
-                        $this->addError("dir_{$name}", "Failed to create directory: {$name}");
-                    }
-                } else {
-                    $this->addError("dir_{$name}", "Directory does not exist: {$name}");
-                }
-            }
-        }
-    }
-
-    /**
-     * Check file and directory permissions
-     */
-    public function checkPermissions(): void
-    {
-        $basePath = $this->getBasePath();
-
-        $writableDirs = [
-            'data'            => $basePath . '/data',
-            'data/cms'        => $basePath . '/data/cms',
-            'data/cache'      => $basePath . '/data/cache',
-            'config/autoload' => $basePath . '/config/autoload',
-        ];
-
-        foreach ($writableDirs as $name => $path) {
-            if (! is_dir($path)) {
-                continue;
-            }
-
-            if (is_writable($path)) {
-                $this->addResult(
-                    "writable_{$name}",
-                    true,
-                    "Directory is writable: {$name}"
-                );
-            } else {
-                if ($this->autoFix) {
-                    if ($this->makeWritable($path)) {
-                        $this->addResult(
-                            "writable_{$name}",
-                            true,
-                            "Directory permissions fixed: {$name}"
-                        );
-                    } else {
-                        $this->addError(
-                            "writable_{$name}",
-                            "Failed to make directory writable: {$name}"
-                        );
-                    }
-                } else {
-                    $this->addError("writable_{$name}", "Directory is not writable: {$name}");
-                }
-            }
-        }
-    }
-
-    /**
-     * Check configuration files exist and are valid
-     */
-    public function checkConfiguration(): void
-    {
-        $basePath = $this->getBasePath();
-
-        // Check that config directories exist - individual config files are optional
-        // since they may be created during setup
-        $configDir = $basePath . '/config/autoload';
-
-        if (is_dir($configDir) && is_writable($configDir)) {
-            $this->addResult(
-                'config_directory',
-                true,
-                'Configuration directory is writable'
-            );
-        } else {
-            $this->addError(
-                'config_directory',
-                'Configuration directory is not writable or does not exist'
-            );
-        }
-    }
-
-    /**
-     * Create a directory with appropriate permissions
-     */
-    private function createDirectory(string $path): bool
-    {
-        try {
-            if (mkdir($path, 0755, true) || is_dir($path)) {
-                chmod($path, 0755);
-                return true;
-            }
-            return false;
-        } catch (Exception $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Make a directory writable
-     */
-    private function makeWritable(string $path): bool
-    {
-        try {
-            return chmod($path, 0755);
-        } catch (Exception $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Add a successful result
-     */
-    private function addResult(string $key, bool $success, string $message): void
-    {
-        $this->results[$key] = [
-            'success' => $success,
-            'message' => $message,
-        ];
-    }
-
-    /**
-     * Add an error
-     */
     private function addError(string $key, string $message): void
     {
         $this->errors[$key]  = $message;
-        $this->results[$key] = [
-            'success' => false,
-            'message' => $message,
-        ];
+        $this->results[$key] = ['success' => false, 'message' => $message];
+    }
+
+    private function addResult(string $key, string $message): void
+    {
+        $this->results[$key] = ['success' => true, 'message' => $message];
     }
 
     /**
-     * Get the base path of the application
+     * Record a passing check, or try the fix when auto-fix is on.
+     *
+     * @param callable(): bool $check
+     * @param callable(): bool $fix
+     * @param array{string, string} $passed Messages when it passes, and when the fix worked.
+     * @param array{string, string} $failed Messages when auto-fix is off, and when the fix failed.
      */
-    private function getBasePath(): string
+    private function checkOrFix(string $key, callable $check, callable $fix, array $passed, array $failed): void
     {
-        return realpath(__DIR__ . '/../../../../');
-    }
+        if ($check()) {
+            $this->addResult($key, $passed[0]);
 
-    /**
-     * Get results
-     */
-    public function getResults(): array
-    {
-        return $this->results;
-    }
+            return;
+        }
 
-    /**
-     * Get errors
-     */
-    public function getErrors(): array
-    {
-        return $this->errors;
-    }
+        if (! $this->autoFix) {
+            $this->addError($key, $failed[0]);
 
-    /**
-     * Check if diagnostics passed
-     */
-    public function hasPassed(): bool
-    {
-        return empty($this->errors);
+            return;
+        }
+
+        if (Filesystem::silently($fix)) {
+            $this->addResult($key, $passed[1]);
+
+            return;
+        }
+
+        $this->addError($key, $failed[1]);
     }
 }
