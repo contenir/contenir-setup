@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Contenir\Setup\Service;
 
+use Override;
 use RuntimeException;
 
 use function dirname;
@@ -18,159 +19,146 @@ use function str_repeat;
 use function var_export;
 
 /**
- * Database Configuration Writer
+ * Writes the database configuration entered in the setup wizard to a PHP
+ * config file, `config/autoload/db.local.php` (relative to the working
+ * directory, which Mezzio sets to the application root) by default.
  *
- * Writes database configuration to config/autoload/db.local.php
+ * @api
+ *
+ * @mago-expect lint:cyclomatic-complexity Each filesystem precondition is reported separately, as in 0.x.
  */
-class DatabaseConfigWriter
+final class DatabaseConfigWriter implements DatabaseConfigWriterInterface
 {
+    private const string DEFAULT_PATH = 'config/autoload/db.local.php';
+
+    /**
+     * Form fields copied to db.site, with the config key they become.
+     *
+     * @mago-expect lint:no-literal-password These are config key names, not credentials.
+     */
+    private const array SITE_FIELDS = [
+        'site_hostname' => 'hostname',
+        'site_port'     => 'port',
+        'site_database' => 'database',
+        'site_username' => 'username',
+        'site_password' => 'password',
+    ];
+
     private string $configPath;
 
     public function __construct(?string $configPath = null)
     {
-        $this->configPath = $configPath ?? __DIR__ . '/../../../../config/autoload/db.local.php';
+        $this->configPath = $configPath ?? self::DEFAULT_PATH;
     }
 
     /**
-     * Write database configuration
+     * @param array<array-key, mixed> $data
      *
-     * @param array $config Database configuration array
-     * @return bool True on success
-     * @throws RuntimeException If unable to write configuration.
+     * @return array{db: array<string, array<string, mixed>>}
+     *
+     * @mago-expect analysis:mixed-assignment Form values are untyped and written as entered.
      */
-    public function write(array $config): bool
-    {
-        // Ensure config directory exists
-        $configDir = dirname($this->configPath);
-        if (! is_dir($configDir)) {
-            if (! mkdir($configDir, 0755, true) && ! is_dir($configDir)) {
-                throw new RuntimeException(
-                    sprintf('Failed to create config directory: %s', $configDir)
-                );
-            }
-        }
-
-        // Check if directory is writable
-        if (! is_writable($configDir)) {
-            throw new RuntimeException(
-                sprintf('Config directory is not writable: %s', $configDir)
-            );
-        }
-
-        // Check if file exists and is writable
-        if (file_exists($this->configPath) && ! is_writable($this->configPath)) {
-            throw new RuntimeException(
-                sprintf('Config file is not writable: %s', $this->configPath)
-            );
-        }
-
-        // Build configuration array
-        $dbConfig = $this->buildConfig($config);
-
-        // Generate PHP config file content
-        $content  = "<?php\n\n";
-        $content .= "declare(strict_types=1);\n\n";
-        $content .= "return " . $this->varExportPretty($dbConfig) . ";\n";
-
-        // Write to file
-        $result = file_put_contents($this->configPath, $content);
-
-        if ($result === false) {
-            throw new RuntimeException(
-                sprintf('Failed to write config file: %s', $this->configPath)
-            );
-        }
-
-        return true;
-    }
-
-    /**
-     * Build database configuration array from form data
-     */
-    private function buildConfig(array $data): array
+    private static function buildConfig(array $data): array
     {
         $config = ['db' => []];
 
-        // CMS database (SQLite)
-        if (isset($data['cms_database'])) {
-            $config['db']['cms'] = [
-                'database' => $data['cms_database'],
-            ];
+        if (null !== ($data['cms_database'] ?? null)) {
+            $config['db']['cms'] = ['database' => $data['cms_database']];
         }
 
-        // Site database (MySQL)
-        $siteConfig = [];
-
-        if (isset($data['site_hostname']) && $data['site_hostname'] !== '') {
-            $siteConfig['hostname'] = $data['site_hostname'];
+        $site = [];
+        foreach (self::SITE_FIELDS as $field => $key) {
+            $value = $data[$field] ?? '';
+            if ('' !== $value) {
+                $site[$key] = 'port' === $key ? (int) $value : $value;
+            }
         }
 
-        if (isset($data['site_port']) && $data['site_port'] !== '') {
-            $siteConfig['port'] = (int) $data['site_port'];
-        }
-
-        if (isset($data['site_database']) && $data['site_database'] !== '') {
-            $siteConfig['database'] = $data['site_database'];
-        }
-
-        if (isset($data['site_username']) && $data['site_username'] !== '') {
-            $siteConfig['username'] = $data['site_username'];
-        }
-
-        if (isset($data['site_password']) && $data['site_password'] !== '') {
-            $siteConfig['password'] = $data['site_password'];
-        }
-
-        if (! empty($siteConfig)) {
-            $config['db']['site'] = $siteConfig;
+        if ([] !== $site) {
+            $config['db']['site'] = $site;
         }
 
         return $config;
     }
 
     /**
-     * Pretty print var_export for readable config files
+     * Render an array as indented short-array PHP source.
+     *
+     * @param array<array-key, mixed> $data
+     * @param non-negative-int $indent
+     *
+     * @mago-expect analysis:mixed-assignment Config values are exported whatever their type.
      */
-    private function varExportPretty(array $data, int $indent = 0): string
+    private static function export(array $data, int $indent = 0): string
     {
         $output    = "[\n";
         $indentStr = str_repeat('    ', $indent + 1);
 
         foreach ($data as $key => $value) {
-            $output .= $indentStr . var_export($key, true) . ' => ';
-
-            if (is_array($value)) {
-                $output .= $this->varExportPretty($value, $indent + 1);
-            } else {
-                $output .= var_export($value, true);
-            }
-
+            $output .= $indentStr . var_export($key, return: true) . ' => ';
+            $output .= is_array($value) ? self::export($value, $indent + 1) : var_export($value, return: true);
             $output .= ",\n";
         }
 
-        $output .= str_repeat('    ', $indent) . ']';
-
-        return $output;
+        return $output . str_repeat('    ', $indent) . ']';
     }
 
     /**
-     * Test if configuration file is writable
+     * Whether write() can create or replace the config file.
      */
+    #[Override]
     public function isWritable(): bool
     {
         $configDir = dirname($this->configPath);
 
-        // Check directory exists and is writable
         if (! is_dir($configDir) || ! is_writable($configDir)) {
             return false;
         }
 
-        // If file doesn't exist, check if we can create it (directory is writable)
-        if (! file_exists($this->configPath)) {
-            return true;
+        return ! file_exists($this->configPath) || is_writable($this->configPath);
+    }
+
+    /**
+     * Write the database configuration built from the setup form data:
+     * `cms_database` becomes db.cms.database, and the non-empty `site_*`
+     * fields become db.site (with the port as an integer).
+     *
+     * @param array<array-key, mixed> $config Form data.
+     *
+     * @return true
+     *
+     * @throws RuntimeException If unable to write the configuration.
+     */
+    #[Override]
+    public function write(array $config): bool
+    {
+        $configDir = dirname($this->configPath);
+        if (
+            ! is_dir($configDir)
+            && ! Filesystem::silently(static fn(): bool => mkdir(
+                $configDir,
+                permissions: 0o755,
+                recursive: true,
+            ))
+        ) {
+            throw new RuntimeException(sprintf('Failed to create config directory: %s', $configDir));
         }
 
-        // File exists - check if it's writable
-        return is_writable($this->configPath);
+        if (! is_writable($configDir)) {
+            throw new RuntimeException(sprintf('Config directory is not writable: %s', $configDir));
+        }
+
+        if (file_exists($this->configPath) && ! is_writable($this->configPath)) {
+            throw new RuntimeException(sprintf('Config file is not writable: %s', $this->configPath));
+        }
+
+        $content = "<?php\n\ndeclare(strict_types=1);\n\nreturn " . self::export(self::buildConfig($config)) . ";\n";
+        $path    = $this->configPath;
+
+        if (! Filesystem::silently(static fn(): bool => false !== file_put_contents($path, $content))) {
+            throw new RuntimeException(sprintf('Failed to write config file: %s', $this->configPath));
+        }
+
+        return true;
     }
 }

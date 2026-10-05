@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace Contenir\Setup\Service;
 
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
 
-class CacheServiceFactory
+/**
+ * @api
+ */
+final class CacheServiceFactory
 {
+    /**
+     * @throws ContainerExceptionInterface
+     */
     public function __invoke(ContainerInterface $container): CacheService
     {
-        $config = $container->get('config');
-
-        return new CacheService($config);
+        return new CacheService(ApplicationConfig::from($container));
     }
 }
