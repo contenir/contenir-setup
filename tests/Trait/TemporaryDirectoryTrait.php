@@ -10,10 +10,12 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 
 use function array_reverse;
+use function chdir;
 use function chmod;
 use function clearstatcache;
 use function fileperms;
 use function function_exists;
+use function getcwd;
 use function is_dir;
 use function mkdir;
 use function posix_geteuid;
@@ -30,6 +32,11 @@ use function unlink;
  *
  * The umask is fixed at 022 for the test, so the permissions of the
  * directories it creates are predictable, and restored afterwards.
+ *
+ * The test also runs with the scratch directory as its working directory,
+ * restored afterwards, so a relative path (a service default, or one a
+ * mutant leaves without its directory) is written there and removed with
+ * it, never into the project root.
  */
 trait TemporaryDirectoryTrait
 {
@@ -37,16 +44,21 @@ trait TemporaryDirectoryTrait
 
     private int $previousUmask;
 
+    private string $previousWorkingDirectory;
+
     protected function setUpTemporaryDirectory(): void
     {
-        $this->previousUmask = umask(0o022);
-        $this->tmpDir        = sys_get_temp_dir() . '/contenir-setup-' . uniqid(more_entropy: true);
+        $this->previousUmask            = umask(0o022);
+        $this->previousWorkingDirectory = (string) getcwd();
+        $this->tmpDir                   = sys_get_temp_dir() . '/contenir-setup-' . uniqid(more_entropy: true);
         mkdir($this->tmpDir, permissions: 0o777, recursive: true);
+        chdir($this->tmpDir);
     }
 
     protected function tearDownTemporaryDirectory(): void
     {
         umask($this->previousUmask);
+        chdir($this->previousWorkingDirectory);
 
         if (! is_dir($this->tmpDir)) {
             return;

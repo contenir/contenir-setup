@@ -10,10 +10,8 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-use function chdir;
 use function chmod;
 use function file_put_contents;
-use function getcwd;
 use function mkdir;
 
 #[Group('integration')]
@@ -24,16 +22,10 @@ final class CacheServiceTest extends TestCase
     #[Test]
     public function defaultsToTheDataCacheDirectoryOfTheWorkingDirectory(): void
     {
-        $cwd = (string) getcwd();
         mkdir($this->path('data/cache'), recursive: true);
         file_put_contents($this->path('data/cache/item.php'), data: '<?php return [];');
-        chdir($this->tmpDir);
 
-        try {
-            $result = (new CacheService([]))->clearAll();
-        } finally {
-            chdir($cwd);
-        }
+        $result = (new CacheService([]))->clearAll();
 
         static::assertSame(1, $result['deleted_count'] ?? null);
     }

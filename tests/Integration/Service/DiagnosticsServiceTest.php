@@ -17,7 +17,6 @@ use function array_keys;
 use function array_slice;
 use function chdir;
 use function chmod;
-use function getcwd;
 use function is_dir;
 use function is_writable;
 use function mkdir;
@@ -61,6 +60,17 @@ final class DiagnosticsServiceTest extends TestCase
     }
 
     #[Test]
+    public function checksTheGivenBasePathRatherThanTheWorkingDirectory(): void
+    {
+        mkdir($this->path('site/config/autoload'), recursive: true);
+        $service = new DiagnosticsService([], autoFix: false, basePath: $this->path('site'));
+
+        $service->checkConfiguration();
+
+        static::assertSame([], $service->getErrors());
+    }
+
+    #[Test]
     public function checksThePermissionsOfTheDirectoriesThatExist(): void
     {
         mkdir($this->path('config/autoload'), recursive: true);
@@ -99,14 +109,8 @@ final class DiagnosticsServiceTest extends TestCase
     public function checksTheWorkingDirectoryByDefault(): void
     {
         $this->createDirectories();
-        $cwd = (string) getcwd();
-        chdir($this->tmpDir);
 
-        try {
-            $report = (new DiagnosticsService([]))->runAll();
-        } finally {
-            chdir($cwd);
-        }
+        $report = (new DiagnosticsService([]))->runAll();
 
         static::assertSame('Directory exists: config/autoload', $report['results']['dir_config/autoload']['message']);
     }
@@ -130,14 +134,7 @@ final class DiagnosticsServiceTest extends TestCase
     #[Test]
     public function createsMissingDirectoriesWhenBuiltByTheFactory(): void
     {
-        $cwd = (string) getcwd();
-        chdir($this->tmpDir);
-
-        try {
-            (new DiagnosticsServiceFactory())(new InMemoryContainer(['config' => []]))->runAll();
-        } finally {
-            chdir($cwd);
-        }
+        (new DiagnosticsServiceFactory())(new InMemoryContainer(['config' => []]))->runAll();
 
         static::assertDirectoryExists($this->path('data/cache'));
     }
@@ -238,21 +235,15 @@ final class DiagnosticsServiceTest extends TestCase
     public function resolvesAgainstTheCurrentDirectoryWhenTheWorkingDirectoryIsGone(): void
     {
         $this->createDirectories();
-        $cwd  = (string) getcwd();
         $gone = $this->path('gone');
         mkdir($gone);
         chdir($gone);
         rmdir($gone);
 
-        try {
-            $service = new DiagnosticsService([], autoFix: false);
-            chdir($this->tmpDir);
-            $passed = $service->runAll()['success'];
-        } finally {
-            chdir($cwd);
-        }
+        $service = new DiagnosticsService([], autoFix: false);
+        chdir($this->tmpDir);
 
-        static::assertTrue($passed);
+        static::assertTrue($service->runAll()['success']);
     }
 
     #[Test]
