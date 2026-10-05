@@ -133,4 +133,4 @@ root.
 
 ## License
 
-MIT. See the `license` field in [composer.json](composer.json).
+MIT. See [LICENSE](LICENSE).
