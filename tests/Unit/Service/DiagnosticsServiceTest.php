@@ -29,6 +29,19 @@ final class DiagnosticsServiceTest extends TestCase
     }
 
     #[Test]
+    public function checksEveryExtensionAfterAMissingOne(): void
+    {
+        $service = new DiagnosticsService([]);
+
+        $service->checkPhpExtensions(['contenir_missing', 'json']);
+
+        static::assertSame(
+            ['success' => true, 'message' => 'Extension json is loaded'],
+            $service->getResults()['extension_json'] ?? null,
+        );
+    }
+
+    #[Test]
     #[DataProvider('phpVersions')]
     public function checksThePhpVersionAgainstTheMinimum(string $version, bool $passes, string $message): void
     {
