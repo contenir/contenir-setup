@@ -6,15 +6,22 @@ namespace Contenir\Setup\Handler;
 
 use Contenir\Setup\Service\InstallerService;
 use Mezzio\Template\TemplateRendererInterface;
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
 
-class CompleteHandlerFactory
+/**
+ * @api
+ */
+final class CompleteHandlerFactory
 {
+    /**
+     * @throws ContainerExceptionInterface
+     */
     public function __invoke(ContainerInterface $container): CompleteHandler
     {
         return new CompleteHandler(
             renderer: $container->get(TemplateRendererInterface::class),
-            installerService: $container->get(InstallerService::class)
+            installerService: $container->get(InstallerService::class),
         );
     }
 }

@@ -10,10 +10,17 @@ use Contenir\Setup\Service\DiagnosticsService;
 use Contenir\Setup\Service\InstallerService;
 use Laminas\Db\Adapter\Adapter;
 use Mezzio\Template\TemplateRendererInterface;
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
 
-class InstallHandlerFactory
+/**
+ * @api
+ */
+final class InstallHandlerFactory
 {
+    /**
+     * @throws ContainerExceptionInterface
+     */
     public function __invoke(ContainerInterface $container): InstallHandler
     {
         return new InstallHandler(
@@ -22,7 +29,7 @@ class InstallHandlerFactory
             diagnosticsService: $container->get(DiagnosticsService::class),
             configWriter: $container->get(DatabaseConfigWriter::class),
             cacheService: $container->get(CacheService::class),
-            adapter: $container->get(Adapter::class)
+            adapter: $container->get(Adapter::class),
         );
     }
 }

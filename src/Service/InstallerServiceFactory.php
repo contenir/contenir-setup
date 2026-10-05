@@ -6,21 +6,28 @@ namespace Contenir\Setup\Service;
 
 use Contenir\Service\Database\AdapterManager;
 use Contenir\Service\Migration\MigrationService;
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
 use User\Manager\UserManager;
 
-class InstallerServiceFactory
+/**
+ * Builds the InstallerService on the "cms" adapter of the host application's
+ * AdapterManager, with its MigrationService and UserManager.
+ *
+ * @api
+ */
+final class InstallerServiceFactory
 {
+    /**
+     * @throws ContainerExceptionInterface
+     */
     public function __invoke(ContainerInterface $container): InstallerService
     {
-        $adapterManager   = $container->get(AdapterManager::class);
-        $config           = $container->get('config');
-        $migrationService = $container->get(MigrationService::class);
-        $userManager      = $container->get(UserManager::class);
-
-        // Use CMS database adapter
-        $adapter = $adapterManager->getAdapter('cms');
-
-        return new InstallerService($adapter, $config, $migrationService, $userManager);
+        return new InstallerService(
+            $container->get(AdapterManager::class)->getAdapter('cms'),
+            ApplicationConfig::from($container),
+            $container->get(MigrationService::class),
+            $container->get(UserManager::class),
+        );
     }
 }
