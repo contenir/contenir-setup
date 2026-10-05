@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Contenir\Setup\Handler;
 
-use Contenir\Setup\Service\CacheService;
-use Contenir\Setup\Service\DatabaseConfigWriter;
-use Contenir\Setup\Service\DiagnosticsService;
-use Contenir\Setup\Service\InstallerService;
+use Contenir\Setup\Service\CacheServiceInterface;
+use Contenir\Setup\Service\DatabaseConfigWriterInterface;
+use Contenir\Setup\Service\DiagnosticsServiceInterface;
+use Contenir\Setup\Service\InstallerServiceInterface;
 use Exception;
 use Laminas\Db\Adapter\Adapter;
 use Laminas\Db\Adapter\Exception\RuntimeException as DbRuntimeException;
@@ -43,7 +43,7 @@ use function urlencode;
  *
  * @mago-expect lint:cyclomatic-complexity One handler drives every wizard step; splitting it per step is a suggested follow-up.
  */
-class InstallHandler implements RequestHandlerInterface
+final class InstallHandler implements RequestHandlerInterface
 {
     public const int MINIMUM_PASSWORD_LENGTH = 8;
 
@@ -52,10 +52,10 @@ class InstallHandler implements RequestHandlerInterface
      */
     public function __construct(
         private TemplateRendererInterface $renderer,
-        private InstallerService $installerService,
-        private DiagnosticsService $diagnosticsService,
-        private DatabaseConfigWriter $configWriter,
-        private CacheService $cacheService,
+        private InstallerServiceInterface $installerService,
+        private DiagnosticsServiceInterface $diagnosticsService,
+        private DatabaseConfigWriterInterface $configWriter,
+        private CacheServiceInterface $cacheService,
         private Adapter $adapter,
     ) {}
 

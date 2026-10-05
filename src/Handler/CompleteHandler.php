@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Contenir\Setup\Handler;
 
-use Contenir\Setup\Service\InstallerService;
+use Contenir\Setup\Service\InstallerServiceInterface;
 use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use Mezzio\Template\TemplateRendererInterface;
@@ -21,14 +21,14 @@ use Psr\Http\Server\RequestHandlerInterface;
  *
  * @api
  */
-class CompleteHandler implements RequestHandlerInterface
+final class CompleteHandler implements RequestHandlerInterface
 {
     /**
      * @mago-expect analysis:unused-property The renderer is kept for constructor compatibility.
      */
     public function __construct(
         private TemplateRendererInterface $renderer,
-        private InstallerService $installerService,
+        private InstallerServiceInterface $installerService,
     ) {}
 
     #[Override]

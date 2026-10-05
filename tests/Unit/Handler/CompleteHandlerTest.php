@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Contenir\Setup\Tests\Unit\Handler;
 
 use Contenir\Setup\Handler\CompleteHandler;
-use Contenir\Setup\Service\InstallerService;
+use Contenir\Setup\Service\InstallerServiceInterface;
 use Laminas\Diactoros\ServerRequest;
 use Mezzio\Template\TemplateRendererInterface;
 use PHPUnit\Framework\Attributes\Group;
@@ -18,7 +18,7 @@ final class CompleteHandlerTest extends TestCase
     #[Test]
     public function answersNotFoundOnceInstalled(): void
     {
-        $installer = $this->createMock(InstallerService::class);
+        $installer = $this->createMock(InstallerServiceInterface::class);
         $installer->method('isInstalled')->willReturn(true);
         $installer->expects($this->never())->method('validate');
         $renderer = $this->createMock(TemplateRendererInterface::class);
@@ -32,7 +32,7 @@ final class CompleteHandlerTest extends TestCase
     #[Test]
     public function redirectsToSetupUntilInstalled(): void
     {
-        $installer = $this->createStub(InstallerService::class);
+        $installer = $this->createStub(InstallerServiceInterface::class);
         $installer->method('isInstalled')->willReturn(false);
 
         $response = (new CompleteHandler($this->createStub(TemplateRendererInterface::class), $installer))->handle(

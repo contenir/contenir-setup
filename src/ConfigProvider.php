@@ -10,12 +10,16 @@ use Contenir\Setup\Handler\InstallHandler;
 use Contenir\Setup\Handler\InstallHandlerFactory;
 use Contenir\Setup\Service\CacheService;
 use Contenir\Setup\Service\CacheServiceFactory;
+use Contenir\Setup\Service\CacheServiceInterface;
 use Contenir\Setup\Service\DatabaseConfigWriter;
 use Contenir\Setup\Service\DatabaseConfigWriterFactory;
+use Contenir\Setup\Service\DatabaseConfigWriterInterface;
 use Contenir\Setup\Service\DiagnosticsService;
 use Contenir\Setup\Service\DiagnosticsServiceFactory;
+use Contenir\Setup\Service\DiagnosticsServiceInterface;
 use Contenir\Setup\Service\InstallerService;
 use Contenir\Setup\Service\InstallerServiceFactory;
+use Contenir\Setup\Service\InstallerServiceInterface;
 
 use function dirname;
 
@@ -28,11 +32,17 @@ use function dirname;
 final class ConfigProvider
 {
     /**
-     * @return array{factories: array<class-string, class-string>}
+     * @return array{aliases: array<class-string, class-string>, factories: array<class-string, class-string>}
      */
     public function getDependencies(): array
     {
         return [
+            'aliases'   => [
+                InstallerServiceInterface::class     => InstallerService::class,
+                DiagnosticsServiceInterface::class   => DiagnosticsService::class,
+                CacheServiceInterface::class         => CacheService::class,
+                DatabaseConfigWriterInterface::class => DatabaseConfigWriter::class,
+            ],
             'factories' => [
                 InstallHandler::class       => InstallHandlerFactory::class,
                 CompleteHandler::class      => CompleteHandlerFactory::class,
@@ -58,7 +68,7 @@ final class ConfigProvider
 
     /**
      * @return array{
-     *     dependencies: array{factories: array<class-string, class-string>},
+     *     dependencies: array{aliases: array<class-string, class-string>, factories: array<class-string, class-string>},
      *     templates: array{paths: array{setup: list<string>}}
      * }
      */

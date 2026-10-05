@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Contenir\Setup\Service;
 
 use FilesystemIterator;
+use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -22,7 +23,7 @@ use function unlink;
  *
  * @api
  */
-class CacheService
+final class CacheService implements CacheServiceInterface
 {
     private const string DEFAULT_CACHE_DIR = 'data/cache';
 
@@ -63,6 +64,7 @@ class CacheService
      *
      * @mago-expect analysis:mixed-assignment Config values are untyped; the type is checked here.
      */
+    #[Override]
     public function clearAll(): array
     {
         $cacheDir = $this->config['cache_dir'] ?? null;

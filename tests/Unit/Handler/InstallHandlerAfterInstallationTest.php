@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Contenir\Setup\Tests\Unit\Handler;
 
 use Contenir\Setup\Handler\InstallHandler;
-use Contenir\Setup\Service\CacheService;
-use Contenir\Setup\Service\DatabaseConfigWriter;
-use Contenir\Setup\Service\DiagnosticsService;
-use Contenir\Setup\Service\InstallerService;
+use Contenir\Setup\Service\CacheServiceInterface;
+use Contenir\Setup\Service\DatabaseConfigWriterInterface;
+use Contenir\Setup\Service\DiagnosticsServiceInterface;
+use Contenir\Setup\Service\InstallerServiceInterface;
 use Laminas\Db\Adapter\Adapter;
 use Laminas\Diactoros\ServerRequest;
 use Mezzio\Template\TemplateRendererInterface;
@@ -60,17 +60,17 @@ final class InstallHandlerAfterInstallationTest extends TestCase
     #[DataProvider('requests')]
     public function answersNotFoundWithoutActing(ServerRequestInterface $request): void
     {
-        $installer = $this->createMock(InstallerService::class);
+        $installer = $this->createMock(InstallerServiceInterface::class);
         $installer->expects($this->atLeastOnce())->method('isInstalled')->willReturn(true);
         foreach (['install', 'repair', 'createAdminUser', 'validate', 'databaseFileExists'] as $method) {
             $installer->expects($this->never())->method($method);
         }
 
-        $writer = $this->createMock(DatabaseConfigWriter::class);
+        $writer = $this->createMock(DatabaseConfigWriterInterface::class);
         $writer->expects($this->never())->method('write');
-        $cache = $this->createMock(CacheService::class);
+        $cache = $this->createMock(CacheServiceInterface::class);
         $cache->expects($this->never())->method('clearAll');
-        $diagnostics = $this->createMock(DiagnosticsService::class);
+        $diagnostics = $this->createMock(DiagnosticsServiceInterface::class);
         $diagnostics->expects($this->never())->method('runAll');
         $adapter = $this->createMock(Adapter::class);
         $adapter->expects($this->never())->method('query');

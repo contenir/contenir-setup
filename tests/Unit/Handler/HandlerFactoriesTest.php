@@ -8,10 +8,10 @@ use Contenir\Setup\Handler\CompleteHandler;
 use Contenir\Setup\Handler\CompleteHandlerFactory;
 use Contenir\Setup\Handler\InstallHandler;
 use Contenir\Setup\Handler\InstallHandlerFactory;
-use Contenir\Setup\Service\CacheService;
-use Contenir\Setup\Service\DatabaseConfigWriter;
-use Contenir\Setup\Service\DiagnosticsService;
-use Contenir\Setup\Service\InstallerService;
+use Contenir\Setup\Service\CacheServiceInterface;
+use Contenir\Setup\Service\DatabaseConfigWriterInterface;
+use Contenir\Setup\Service\DiagnosticsServiceInterface;
+use Contenir\Setup\Service\InstallerServiceInterface;
 use Contenir\Setup\Tests\TestAsset\Container\InMemoryContainer;
 use Laminas\Db\Adapter\Adapter;
 use Mezzio\Template\TemplateRendererInterface;
@@ -37,12 +37,12 @@ final class HandlerFactoriesTest extends TestCase
     private function container(): InMemoryContainer
     {
         return new InMemoryContainer([
-            TemplateRendererInterface::class => $this->createStub(TemplateRendererInterface::class),
-            InstallerService::class          => $this->createStub(InstallerService::class),
-            DiagnosticsService::class        => $this->createStub(DiagnosticsService::class),
-            DatabaseConfigWriter::class      => $this->createStub(DatabaseConfigWriter::class),
-            CacheService::class              => $this->createStub(CacheService::class),
-            Adapter::class                   => $this->createStub(Adapter::class),
+            TemplateRendererInterface::class     => $this->createStub(TemplateRendererInterface::class),
+            InstallerServiceInterface::class     => $this->createStub(InstallerServiceInterface::class),
+            DiagnosticsServiceInterface::class   => $this->createStub(DiagnosticsServiceInterface::class),
+            DatabaseConfigWriterInterface::class => $this->createStub(DatabaseConfigWriterInterface::class),
+            CacheServiceInterface::class         => $this->createStub(CacheServiceInterface::class),
+            Adapter::class                       => $this->createStub(Adapter::class),
         ]);
     }
 }
