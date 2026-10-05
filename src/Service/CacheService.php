@@ -4,36 +4,69 @@ declare(strict_types=1);
 
 namespace Contenir\Setup\Service;
 
+use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use RuntimeException;
+use SplFileInfo;
 
 use function is_dir;
+use function is_string;
 use function is_writable;
 use function sprintf;
 use function unlink;
 
 /**
- * Cache Service
+ * Clears the application's file cache: every file below the `cache_dir`
+ * config value, or `data/cache` (relative to the working directory, which
+ * Mezzio sets to the application root). Directories are kept.
  *
- * Handles cache clearing operations for the CMS.
+ * @api
  */
 class CacheService
 {
-    private array $config;
+    private const string DEFAULT_CACHE_DIR = 'data/cache';
 
-    public function __construct(array $config)
+    /**
+     * @param array<array-key, mixed> $config The application config; reads cache_dir.
+     */
+    public function __construct(
+        private readonly array $config,
+    ) {}
+
+    /**
+     * Delete the files below a directory; returns how many were deleted.
+     * Files that cannot be deleted are skipped.
+     */
+    private static function clearDirectory(string $directory): int
     {
-        $this->config = $config;
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        );
+
+        $deleted = 0;
+        /** @var SplFileInfo $file */
+        foreach ($files as $file) {
+            $path = $file->getPathname();
+            if ($file->isFile() && Filesystem::silently(static fn(): bool => unlink($path))) {
+                ++$deleted;
+            }
+        }
+
+        return $deleted;
     }
 
     /**
-     * Clear all cache directories
+     * Delete every cached file.
+     *
+     * @return array{success: bool, message: string, deleted_count?: int}
+     *
+     * @mago-expect analysis:mixed-assignment Config values are untyped; the type is checked here.
      */
     public function clearAll(): array
     {
-        $results  = [];
-        $cacheDir = $this->config['cache_dir'] ?? __DIR__ . '/../../../data/cache';
+        $cacheDir = $this->config['cache_dir'] ?? null;
+        $cacheDir = is_string($cacheDir) && '' !== $cacheDir ? $cacheDir : self::DEFAULT_CACHE_DIR;
 
         if (! is_dir($cacheDir)) {
             return [
@@ -42,52 +75,20 @@ class CacheService
             ];
         }
 
-        try {
-            $deletedCount = $this->clearDirectory($cacheDir);
-
-            $results = [
-                'success'       => true,
-                'message'       => sprintf('Successfully cleared %d cache file(s)', $deletedCount),
-                'deleted_count' => $deletedCount,
-            ];
-        } catch (RuntimeException $e) {
-            $results = [
+        if (! is_writable($cacheDir)) {
+            return [
                 'success'       => false,
-                'message'       => 'Failed to clear cache: ' . $e->getMessage(),
+                'message'       => sprintf('Failed to clear cache: Directory is not writable: %s', $cacheDir),
                 'deleted_count' => 0,
             ];
         }
 
-        return $results;
-    }
+        $deletedCount = self::clearDirectory($cacheDir);
 
-    /**
-     * Clear a specific cache directory
-     */
-    private function clearDirectory(string $directory): int
-    {
-        if (! is_dir($directory)) {
-            throw new RuntimeException(sprintf('Directory does not exist: %s', $directory));
-        }
-
-        if (! is_writable($directory)) {
-            throw new RuntimeException(sprintf('Directory is not writable: %s', $directory));
-        }
-
-        $deletedCount = 0;
-        $iterator     = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
-        );
-
-        foreach ($iterator as $file) {
-            if ($file->isFile()) {
-                if (unlink($file->getPathname())) {
-                    $deletedCount++;
-                }
-            }
-        }
-
-        return $deletedCount;
+        return [
+            'success'       => true,
+            'message'       => sprintf('Successfully cleared %d cache file(s)', $deletedCount),
+            'deleted_count' => $deletedCount,
+        ];
     }
 }

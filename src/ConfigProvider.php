@@ -20,27 +20,22 @@ use Contenir\Setup\Service\InstallerServiceFactory;
 use function dirname;
 
 /**
- * Configuration provider for Contenir Setup module
+ * Configuration provider for the Contenir Setup module: the setup handlers,
+ * their services and the "setup" template path.
+ *
+ * @api
  */
-class ConfigProvider
+final class ConfigProvider
 {
-    public function __invoke(): array
-    {
-        return [
-            'dependencies' => $this->getDependencies(),
-            'templates'    => $this->getTemplates(),
-        ];
-    }
-
+    /**
+     * @return array{factories: array<class-string, class-string>}
+     */
     public function getDependencies(): array
     {
         return [
             'factories' => [
-                // Setup Handlers
-                InstallHandler::class  => InstallHandlerFactory::class,
-                CompleteHandler::class => CompleteHandlerFactory::class,
-
-                // Installer Services
+                InstallHandler::class       => InstallHandlerFactory::class,
+                CompleteHandler::class      => CompleteHandlerFactory::class,
                 InstallerService::class     => InstallerServiceFactory::class,
                 DiagnosticsService::class   => DiagnosticsServiceFactory::class,
                 CacheService::class         => CacheServiceFactory::class,
@@ -49,14 +44,29 @@ class ConfigProvider
         ];
     }
 
+    /**
+     * @return array{paths: array{setup: list<string>}}
+     */
     public function getTemplates(): array
     {
-        $moduleRoot = dirname(__DIR__, 2);
-
         return [
             'paths' => [
-                'setup' => [$moduleRoot . '/templates/setup'],
+                'setup' => [dirname(__DIR__) . '/templates/setup'],
             ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     dependencies: array{factories: array<class-string, class-string>},
+     *     templates: array{paths: array{setup: list<string>}}
+     * }
+     */
+    public function __invoke(): array
+    {
+        return [
+            'dependencies' => $this->getDependencies(),
+            'templates'    => $this->getTemplates(),
         ];
     }
 }

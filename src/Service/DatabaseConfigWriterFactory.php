@@ -6,8 +6,14 @@ namespace Contenir\Setup\Service;
 
 use Psr\Container\ContainerInterface;
 
-class DatabaseConfigWriterFactory
+/**
+ * @api
+ */
+final class DatabaseConfigWriterFactory
 {
+    /**
+     * @mago-expect analysis:unused-parameter The writer needs nothing from the container.
+     */
     public function __invoke(ContainerInterface $container): DatabaseConfigWriter
     {
         return new DatabaseConfigWriter();

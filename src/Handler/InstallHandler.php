@@ -14,181 +14,196 @@ use Laminas\Db\Adapter\Exception\RuntimeException as DbRuntimeException;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use Mezzio\Template\TemplateRendererInterface;
+use Override;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use RuntimeException;
 
-use function urldecode;
+use function is_array;
+use function is_string;
 use function urlencode;
 
 /**
- * Install Handler
+ * Web-based installation wizard: diagnostics, database configuration,
+ * connection test and administrator account.
  *
- * Web-based installation interface for the CMS.
- * Guides users through database setup and initial configuration.
+ * Each POST step redirects (post/redirect/get) to `/setup?step=...` with a
+ * `success` or `error` message, which the following GET renders.
+ *
+ * @api
+ *
+ * @mago-expect lint:cyclomatic-complexity One handler drives every wizard step; splitting it per step is a suggested follow-up.
  */
 class InstallHandler implements RequestHandlerInterface
 {
+    /**
+     * @mago-expect lint:excessive-parameter-list The 0.x constructor signature is kept.
+     */
     public function __construct(
         private TemplateRendererInterface $renderer,
         private InstallerService $installerService,
         private DiagnosticsService $diagnosticsService,
         private DatabaseConfigWriter $configWriter,
         private CacheService $cacheService,
-        private Adapter $adapter
-    ) {
+        private Adapter $adapter,
+    ) {}
+
+    /**
+     * The message for a `success` or `error` query parameter: "1" means the
+     * generic message, any other string is shown as given.
+     */
+    private static function message(mixed $value, string $generic): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        return '1' === $value ? $generic : $value;
     }
 
+    #[Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        // Check installation status
-        $isInstalled = $this->installerService->isInstalled();
-        $dbExists    = $this->installerService->databaseFileExists();
+        if ('POST' === $request->getMethod()) {
+            $body     = $request->getParsedBody();
+            $response = $this->handleAction(is_array($body) ? $body : []);
+            if (null !== $response) {
+                return $response;
+            }
+        }
 
+        return $this->renderPage($request->getQueryParams());
+    }
+
+    /**
+     * Step 3: check the database answers a trivial query.
+     */
+    private function checkConnection(): ResponseInterface
+    {
+        try {
+            $this->adapter->query('SELECT 1', Adapter::QUERY_MODE_EXECUTE);
+        } catch (DbRuntimeException $e) {
+            return new RedirectResponse('/setup?step=test-connection&error=' . urlencode($e->getMessage()));
+        }
+
+        return new RedirectResponse('/setup?step=admin-user&success=1');
+    }
+
+    /**
+     * @param array<array-key, mixed> $data
+     */
+    private function handleAction(array $data): ?ResponseInterface
+    {
+        return match ($data['action'] ?? '') {
+            'diagnostics'     => $this->runDiagnostics(),
+            'database-config' => null === ($data['proceed'] ?? null)
+                ? $this->saveDatabaseConfig($data)
+                : new RedirectResponse('/setup?step=database-config'),
+            'test-connection' => $this->checkConnection(),
+            'install'         => $this->install($data),
+            default           => null,
+        };
+    }
+
+    /**
+     * Step 4: run the installation and create the administrator.
+     *
+     * @param array<array-key, mixed> $data
+     */
+    private function install(array $data): ResponseInterface
+    {
+        try {
+            $installed = $this->installerService->install([
+                'username' => $data['admin_username'] ?? 'admin',
+                'email'    => $data['admin_email'] ?? '',
+                'password' => $data['admin_password'] ?? '',
+            ]);
+        } catch (Exception $e) {
+            return new RedirectResponse('/setup?step=admin-user&error=' . urlencode($e->getMessage()));
+        }
+
+        if (! $installed) {
+            return new RedirectResponse('/setup?step=admin-user&error=validation-failed');
+        }
+
+        $this->cacheService->clearAll();
+
+        return new RedirectResponse('/setup/complete');
+    }
+
+    /**
+     * @param array<array-key, mixed> $query
+     */
+    private function renderPage(array $query): ResponseInterface
+    {
+        try {
+            $dbExists = $this->installerService->databaseFileExists();
+        } catch (RuntimeException) {
+            $dbExists = false;
+        }
+
+        $step        = is_string($query['step'] ?? null) ? $query['step'] : null;
         $error       = null;
         $success     = null;
         $diagnostics = null;
-        $step        = 'welcome';
-        $formData    = [];
-        $queryParams = $request->getQueryParams();
 
-        // Check for step from query params (after redirect)
-        if (isset($queryParams['step'])) {
-            $step = $queryParams['step'];
+        if (null !== $step) {
+            $success = self::message($query['success'] ?? null, 'Operation completed successfully.');
+            $error   = self::message($query['error'] ?? null, 'Operation failed. Please check the details below.');
 
-            // Set messages based on query params
-            if (isset($queryParams['success'])) {
-                if ($queryParams['success'] === '1') {
-                    $success = 'Operation completed successfully.';
-                } else {
-                    $success = urldecode($queryParams['success']);
-                }
-            }
-            if (isset($queryParams['error'])) {
-                if ($queryParams['error'] === '1') {
-                    $error = 'Operation failed. Please check the details below.';
-                } else {
-                    $error = urldecode($queryParams['error']);
-                }
-            }
-
-            // If we're on diagnostics step, run them now
-            if ($step === 'diagnostics') {
+            if ('diagnostics' === $step) {
                 $diagnostics = $this->diagnosticsService->runAll();
-                if ($diagnostics['success']) {
-                    $success = 'All system checks passed.';
-                } else {
-                    $error = 'Some system checks failed. Please resolve the issues before continuing.';
-                }
-            }
-        } elseif ($dbExists && ! isset($queryParams['force'])) {
-            // If database exists (even if migrations pending) and no force parameter, show status
-            $step = 'installed';
-        }
-
-        // Handle POST request
-        if ($request->getMethod() === 'POST') {
-            $data   = $request->getParsedBody();
-            $action = $data['action'] ?? '';
-
-            if ($action === 'diagnostics') {
-                // Step 1: Run diagnostics and clear cache
-                $cacheResult = $this->cacheService->clearAll();
-                $diagnostics = $this->diagnosticsService->runAll();
-
-                if ($diagnostics['success']) {
-                    // Redirect to avoid POST refresh loop
-                    return new RedirectResponse('/setup?step=diagnostics&success=1');
-                } else {
-                    return new RedirectResponse('/setup?step=diagnostics&error=1');
-                }
-            } elseif ($action === 'database-config') {
-                // Step 2: Handle database configuration
-                // If just proceeding from diagnostics, show the form
-                if (isset($data['proceed'])) {
-                    return new RedirectResponse('/setup?step=database-config');
-                } else {
-                    // Save database configuration
-                    try {
-                        $this->configWriter->write($data);
-
-                        // Clear cache after config write
-                        $this->cacheService->clearAll();
-
-                        return new RedirectResponse('/setup?step=test-connection&success=1');
-                    } catch (Exception $e) {
-                        $errorMsg = urlencode($e->getMessage());
-                        return new RedirectResponse('/setup?step=database-config&error=' . $errorMsg);
-                    }
-                }
-            } elseif ($action === 'test-connection') {
-                // Step 3: Test database connections
-                $connectionTests = $this->testDatabaseConnections();
-
-                if ($connectionTests['success']) {
-                    return new RedirectResponse('/setup?step=admin-user&success=1');
-                } else {
-                    $errorMsg = urlencode($connectionTests['message']);
-                    return new RedirectResponse('/setup?step=test-connection&error=' . $errorMsg);
-                }
-            } elseif ($action === 'install') {
-                // Step 4: Run installation with admin user
-                $adminData = [
-                    'username' => $data['admin_username'] ?? 'admin',
-                    'email'    => $data['admin_email'] ?? '',
-                    'password' => $data['admin_password'] ?? '',
-                ];
-
-                try {
-                    $result = $this->installerService->install($adminData);
-
-                    if ($result) {
-                        // Clear cache one final time
-                        $this->cacheService->clearAll();
-
-                        // Installation successful - redirect to completion page
-                        return new RedirectResponse('/setup/complete');
-                    } else {
-                        return new RedirectResponse('/setup?step=admin-user&error=validation-failed');
-                    }
-                } catch (Exception $e) {
-                    $errorMsg = urlencode($e->getMessage());
-                    return new RedirectResponse('/setup?step=admin-user&error=' . $errorMsg);
-                }
+                $success     = $diagnostics['success'] ? 'All system checks passed.' : $success;
+                $error       = $diagnostics['success']
+                    ? $error
+                    : 'Some system checks failed. Please resolve the issues before continuing.';
             }
         }
 
-        // Show setup page
+        if (null === $step) {
+            $step = $dbExists && null === ($query['force'] ?? null) ? 'installed' : 'welcome';
+        }
+
         return new HtmlResponse($this->renderer->render('setup::install', [
             'title'       => 'Contenir CMS Setup',
             'step'        => $step,
             'error'       => $error,
             'success'     => $success,
             'diagnostics' => $diagnostics,
-            'formData'    => $formData,
-            'isInstalled' => $isInstalled,
+            'formData'    => [],
+            'isInstalled' => $this->installerService->isInstalled(),
             'dbExists'    => $dbExists,
         ]));
     }
 
     /**
-     * Test database connections
+     * Step 1: clear the cache and run the diagnostics.
      */
-    private function testDatabaseConnections(): array
+    private function runDiagnostics(): ResponseInterface
+    {
+        $this->cacheService->clearAll();
+
+        return $this->diagnosticsService->runAll()['success']
+            ? new RedirectResponse('/setup?step=diagnostics&success=1')
+            : new RedirectResponse('/setup?step=diagnostics&error=1');
+    }
+
+    /**
+     * Step 2: write the database configuration.
+     *
+     * @param array<array-key, mixed> $data
+     */
+    private function saveDatabaseConfig(array $data): ResponseInterface
     {
         try {
-            // Test CMS database (SQLite)
-            $this->adapter->query('SELECT 1', Adapter::QUERY_MODE_EXECUTE);
-
-            return [
-                'success' => true,
-                'message' => 'CMS database connection successful',
-            ];
-        } catch (DbRuntimeException $e) {
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
+            $this->configWriter->write($data);
+        } catch (Exception $e) {
+            return new RedirectResponse('/setup?step=database-config&error=' . urlencode($e->getMessage()));
         }
+
+        $this->cacheService->clearAll();
+
+        return new RedirectResponse('/setup?step=test-connection&success=1');
     }
 }

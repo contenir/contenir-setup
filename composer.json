@@ -3,7 +3,13 @@
     "description": "Installation and setup module for Contenir CMS - handles initial configuration and database setup",
     "type": "library",
     "license": "MIT",
-    "keywords": ["contenir", "mezzio", "cms", "installer", "setup"],
+    "keywords": [
+        "contenir",
+        "mezzio",
+        "cms",
+        "installer",
+        "setup"
+    ],
     "authors": [
         {
             "name": "Contenir",
@@ -11,22 +17,20 @@
         }
     ],
     "require": {
-        "php": "^8.3",
-        "psr/container": "^1.0 || ^2.0",
-        "psr/http-message": "^1.0 || ^2.0",
-        "psr/http-server-handler": "^1.0",
-        "psr/http-server-middleware": "^1.0",
+        "php": "~8.3.0 || ~8.4.0 || ~8.5.0",
+        "laminas/laminas-db": "^2.20",
+        "laminas/laminas-diactoros": "^3.3",
+        "laminas/laminas-servicemanager": "^3.22",
+        "laminas/laminas-view": "^2.33",
         "mezzio/mezzio": "^3.18",
-        "laminas/laminas-diactoros": "^3.0",
-        "laminas/laminas-servicemanager": "^3.0",
-        "laminas/laminas-view": "^2.0",
-        "laminas/laminas-db": "^2.0"
+        "psr/container": "^1.1 || ^2.0",
+        "psr/http-message": "^1.1 || ^2.0",
+        "psr/http-server-handler": "^1.0.2",
+        "psr/http-server-middleware": "^1.0.2"
     },
     "require-dev": {
-        "laminas/laminas-coding-standard": "^3.1",
-        "phpstan/extension-installer": "^1.4",
-        "phpstan/phpstan": "^2.1",
-        "phpunit/phpunit": "^10.5"
+        "php-db/phpdb-qa-tools": "0.1.x-dev",
+        "phpunit/phpunit": "^11.5.42"
     },
     "autoload": {
         "psr-4": {
@@ -35,55 +39,46 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Contenir\\Setup\\Test\\": "test/"
-        }
+            "Contenir\\Setup\\Tests\\": "tests/"
+        },
+        "classmap": [
+            "stubs/"
+        ]
     },
     "scripts": {
         "check": [
-            "@quality",
-            "@test"
-        ],
-        "cs-check": "phpcs",
-        "cs-fix": "phpcbf",
-        "analyze": "phpstan analyze --memory-limit=1G",
-        "analyze:baseline": "phpstan analyze --memory-limit=1G --generate-baseline",
-        "quality": [
             "@cs-check",
-            "@analyze"
+            "@static-analysis",
+            "@test",
+            "@test-integration"
         ],
-        "quality:fix": [
-            "@cs-fix",
-            "@quality"
+        "cs-check": [
+            "mago format --check",
+            "mago lint"
         ],
-        "test": "phpunit --colors=always",
-        "test-coverage": "phpunit --colors=always --coverage-clover clover.xml",
-        "pre-commit": [
-            "@quality",
-            "@test"
-        ]
-    },
-    "scripts-descriptions": {
-        "analyze": "Run static analysis tool PHPStan.",
-        "analyze:baseline": "Generate PHPStan baseline for existing issues.",
-        "check": "Run all quality checks and tests.",
-        "cs-check": "Check code against coding standards.",
-        "cs-fix": "Automatically fix coding standard violations.",
-        "quality": "Run code quality checks (coding standards + static analysis).",
-        "quality:fix": "Fix coding standards and re-run quality checks.",
-        "test": "Run unit tests.",
-        "test-coverage": "Run unit tests with code coverage report.",
-        "pre-commit": "Run pre-commit checks (quality + tests). Used by git hook."
+        "cs-fix": [
+            "mago format",
+            "mago lint --fix"
+        ],
+        "static-analysis": "mago analyze",
+        "test": "phpunit --colors=always --testsuite unit",
+        "test-integration": "phpunit --colors=always --testsuite integration",
+        "test-coverage": "phpunit --colors=always --coverage-clover clover.xml"
     },
     "config": {
-        "allow-plugins": {
-            "dealerdirect/phpcodesniffer-composer-installer": true,
-            "phpstan/extension-installer": true
+        "platform": {
+            "php": "8.3.99"
         },
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-master": "2.0.x-dev"
+        },
         "laminas": {
             "config-provider": "Contenir\\Setup\\ConfigProvider"
         }
-    }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }

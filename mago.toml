@@ -1,0 +1,20 @@
+extends = "vendor/php-db/phpdb-qa-tools/mago.toml"
+php-version = "8.3.0"
+
+[source]
+paths = ["src", "tests"]
+# stubs/ declares the host-application classes InstallerService uses (from the
+# Contenir CMS application, not a package); read for symbols only.
+includes = ["vendor", "stubs"]
+
+[formatter]
+# Keep `(new Foo())->bar()`: CI formats under each job's PHP version, and the
+# unparenthesised form PHP 8.4+ allows does not parse on 8.3, the minimum.
+parentheses-around-new-in-member-access = true
+
+[linter.rules]
+# The shared base excludes "test/"; this repository keeps its suites under "tests/".
+too-many-methods = { exclude = ["tests/"] }
+
+[analyzer]
+excludes = ["tests"]
